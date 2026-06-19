@@ -399,7 +399,7 @@
     <div class="header">
       <button class="btn" onclick="toggleSidebar()">≡</button>
       <div class="header-title">🏢 강의실 예약</div>
-      <div class="banner" id="banner">로딩 중...</div>
+      <div class="banner" id="banner">🔄 서버 연결 중...</div>
       <div class="badge" id="badge">잠김</div>
       <button class="btn" id="adminBtn" onclick="showAdminLogin()">관리자</button>
     </div>
@@ -418,6 +418,7 @@
           <button class="btn" onclick="changeWeek(-1)">◀</button>
           <span id="weekLabel" style="min-width: 80px; text-align: center;"></span>
           <button class="btn" onclick="changeWeek(1)">▶</button>
+          <button class="btn" onclick="syncWithServer()">🔄 동기화</button>
           <span style="flex: 1;"></span>
           <label style="font-size: 10px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
             <input type="checkbox" id="testMode" onchange="toggleTestMode()">
@@ -427,7 +428,7 @@
         
         <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
           <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
+            <div style="width: 12px; height: 12px; background: var(--bg-primary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
             <span>빈 칸</span>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
@@ -469,7 +470,7 @@
       <label class="modal-label">예약자명</label>
       <input type="text" class="modal-input" id="bookingName" placeholder="성함 입력" maxlength="14">
       <label class="modal-label">메모 (선택)</label>
-      <input type="text" class="modal-input" id="bookingMemo" placeholder="예: 일반화학 실험">
+      <input type="text" class="modal-input" id="bookingMemo" placeholder="예: 생물학 실험">
       <div class="modal-buttons">
         <button class="btn" onclick="closeModal('bookingModal')">취소</button>
         <button class="btn btn-primary" onclick="saveBooking()">예약</button>
@@ -511,6 +512,9 @@
   <div class="toast" id="toast"></div>
   
   <script>
+    // ⚠️ 1단계에서 구글 배포 후 받은 웹 앱 URL을 여기에 붙여넣으세요!
+    const API_URL = "https://script.google.com/macros/s/AKfycbxN1zaKVaa-grAhgJkAYoGS8Dpyg1WyfFIZhTlIdTLUThyOjNpHFbxvdRvnpYcZ5YQyyA/exec"; 
+    
     // Constants
     const ROOMS = ['120호', '128호', '129호', '219호', '229호'];
     const SLOTS = Array.from({length: 15}, (_, i) => `${String(i+9).padStart(2, '0')}:00`);
@@ -543,10 +547,8 @@
     let pendingBooking = null;
     let pendingAdminBooking = null;
     
-    // Get formatted date
     const formatDate = (d) => d.toISOString().split('T')[0];
     
-    // Get week dates
     function getWeekDates(offset = 0) {
       const today = new Date();
       const start = new Date(today);
@@ -559,10 +561,8 @@
       });
     }
     
-    // Get mode (locked, queue, free)
     function getMode() {
       if (testMode) return 'free';
-      
       const now = new Date();
       if (now.getDay() === 1) {
         if (now.getHours() < 9) return 'locked';
@@ -571,22 +571,18 @@
       return 'free';
     }
     
-    // Format countdown
     function formatCountdown(ms) {
       const s = Math.floor(ms / 1000);
       const m = Math.floor(s / 60);
       const h = Math.floor(m / 60);
       const d = Math.floor(h / 24);
-      
       if (d > 0) return `${d}일 ${h % 24}시간 ${m % 60}분`;
       if (h > 0) return `${h}시간 ${m % 60}분`;
       return `${m}분 ${s % 60}초`;
     }
     
-    // Key generator
     const slotKey = (date, roomIdx, timeIdx) => `${date}_${roomIdx}_${timeIdx}`;
     
-    // Get or assign color by name
     function getColorByName(name) {
       if (!state.nameColors[name]) {
         const usedIndices = Object.values(state.nameColors);
@@ -594,31 +590,55 @@
         while (usedIndices.includes(idx) && idx < COLORS.length) idx++;
         if (idx >= COLORS.length) idx = Object.keys(state.nameColors).length % COLORS.length;
         state.nameColors[name] = idx;
-        saveState();
       }
       return COLORS[state.nameColors[name]];
     }
     
-    // Save state to localStorage
-    function saveState() {
-      localStorage.setItem('classroomBooking', JSON.stringify(state));
-      localStorage.setItem('myNum', JSON.stringify(myNum));
-      localStorage.setItem('myName', JSON.stringify(myName));
+    // 중앙 구글 데이터베이스에 저장
+    async function saveState() {
+      localStorage.setItem('myNum_room', JSON.stringify(myNum));
+      localStorage.setItem('myName_room', JSON.stringify(myName));
+      
+      if (API_URL.includes("여기에")) return;
+      
+      try {
+        await fetch(API_URL, {
+          method: 'POST',
+          mode: 'no-cors', // CORS 제한 방지
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state)
+        });
+      } catch (e) {
+        console.error("서버 데이터 저장 실패:", e);
+      }
     }
     
-    // Load state from localStorage
-    function loadState() {
-      const saved = localStorage.getItem('classroomBooking');
-      if (saved) state = JSON.parse(saved);
+    // 중앙 구글 데이터베이스에서 최신 정보 동기화
+    async function syncWithServer() {
+      const banner = document.getElementById('banner');
+      if (API_URL.includes("여기에")) {
+        banner.textContent = "⚠️ 상단 API_URL 설정을 완료해주세요.";
+        return;
+      }
       
-      const savedMyNum = localStorage.getItem('myNum');
+      try {
+        const res = await fetch(API_URL);
+        const serverState = await res.json();
+        if (serverState && Object.keys(serverState).length > 0) {
+          state = serverState;
+        }
+      } catch (e) {
+        console.error("서버 동기화 실패:", e);
+      }
+      
+      const savedMyNum = localStorage.getItem('myNum_room');
       if (savedMyNum) myNum = JSON.parse(savedMyNum);
-      
-      const savedMyName = localStorage.getItem('myName');
+      const savedMyName = localStorage.getItem('myName_room');
       if (savedMyName) myName = JSON.parse(savedMyName);
+      
+      render();
     }
     
-    // Toast notification
     function showToast(msg, duration = 2500) {
       const toast = document.getElementById('toast');
       toast.textContent = msg;
@@ -626,11 +646,9 @@
       setTimeout(() => toast.classList.remove('show'), duration);
     }
     
-    // Modal management
     function openModal(id) { document.getElementById(id).classList.add('active'); }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
     
-    // Admin login
     function showAdminLogin() {
       if (isAdmin) {
         isAdmin = false;
@@ -657,21 +675,9 @@
     function saveAdminPassword() {
       const newPw = document.getElementById('newPassword').value.trim();
       const confirmPw = document.getElementById('confirmPassword').value.trim();
-      
-      if (!newPw || !confirmPw) {
-        showToast('비밀번호를 입력해 주세요');
-        return;
-      }
-      
-      if (newPw.length < 4) {
-        showToast('비밀번호는 최소 4자 이상이어야 합니다');
-        return;
-      }
-      
-      if (newPw !== confirmPw) {
-        showToast('비밀번호가 일치하지 않습니다');
-        return;
-      }
+      if (!newPw || !confirmPw) { showToast('비밀번호를 입력해 주세요'); return; }
+      if (newPw.length < 4) { showToast('비밀번호는 최소 4자 이상이어야 합니다'); return; }
+      if (newPw !== confirmPw) { showToast('비밀번호가 일치하지 않습니다'); return; }
       
       state.adminPassword = newPw;
       saveState();
@@ -681,26 +687,25 @@
       showToast('✓ 비밀번호가 변경되었습니다');
     }
     
-    // Queue management
-    function joinQueue() {
+    async function joinQueue() {
       const name = document.getElementById('queueInput')?.value?.trim();
       if (!name) { showToast('성함을 입력해 주세요'); return; }
       if (myNum !== null) { showToast('이미 순번을 받으셨습니다'); return; }
+      
+      await syncWithServer();
       
       const num = state.nextNum++;
       state.queue.push({num, name, done: false});
       myNum = num;
       myName = name;
-      
       if (state.currentTurn === null) state.currentTurn = num;
       
       document.getElementById('queueInput').value = '';
-      saveState();
+      await saveState();
       render();
       showToast(`✓ ${num}번 순번이 부여되었습니다`);
     }
     
-    // Slot click
     function clickSlot(weekIdx, roomIdx, timeIdx) {
       const dates = getWeekDates(weekOffset);
       const date = formatDate(dates[weekIdx]);
@@ -719,10 +724,7 @@
         return;
       }
       
-      if (mode === 'locked') {
-        showToast('월요일 오전 9시에 예약이 시작됩니다');
-        return;
-      }
+      if (mode === 'locked') { showToast('월요일 오전 9시에 예약이 시작됩니다'); return; }
       
       if (mode === 'queue') {
         if (myNum === null) { showToast('순번을 먼저 받아 주세요'); return; }
@@ -732,7 +734,6 @@
           return;
         }
         if (state.bookings[key]) { showToast('이미 예약된 슬롯입니다'); return; }
-        
         selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
         render();
         return;
@@ -754,24 +755,30 @@
       setTimeout(() => document.getElementById('bookingName').focus(), 100);
     }
     
-    // Save booking
-    function saveBooking() {
+    async function saveBooking() {
       if (!pendingBooking) return;
       const name = document.getElementById('bookingName').value.trim();
       if (!name) { showToast('예약자명을 입력해 주세요'); return; }
       
       const memo = document.getElementById('bookingMemo').value.trim();
-      const color = getColorByName(name);
+      getColorByName(name);
+      
+      await syncWithServer(); 
+      if (state.bookings[pendingBooking.key]) {
+        showToast("⚠️ 이미 선점된 칸입니다. 다른 칸을 선택해 주세요.");
+        closeModal('bookingModal');
+        return;
+      }
+      
       state.bookings[pendingBooking.key] = {name, memo, num: null};
       closeModal('bookingModal');
       pendingBooking = null;
-      saveState();
+      await saveState();
       render();
       showToast('✓ 예약 완료');
     }
     
-    // Admin booking
-    function saveAdminBooking() {
+    async function saveAdminBooking() {
       if (!pendingAdminBooking) return;
       const name = document.getElementById('adminBookName').value.trim() || '관리자';
       const memo = document.getElementById('adminBookMemo').value.trim();
@@ -779,27 +786,28 @@
       state.bookings[pendingAdminBooking.key] = {name, memo, num: 'admin'};
       closeModal('adminBookModal');
       pendingAdminBooking = null;
-      saveState();
+      await saveState();
       render();
       showToast('✓ 강제 예약 완료');
     }
     
-    function deleteAdminBooking() {
+    async function deleteAdminBooking() {
       if (pendingAdminBooking && state.bookings[pendingAdminBooking.key]) {
         delete state.bookings[pendingAdminBooking.key];
         closeModal('adminBookModal');
         pendingAdminBooking = null;
-        saveState();
+        await saveState();
         render();
         showToast('예약 삭제됨');
       }
     }
     
-    // Submit booking
-    function submitBooking() {
+    async function submitBooking() {
       if (selectedSlots.size === 0) { showToast('선택한 슬롯이 없습니다'); return; }
       
-      const color = getColorByName(myName);
+      await syncWithServer(); 
+      
+      getColorByName(myName);
       selectedSlots.forEach(key => {
         state.bookings[key] = {name: myName, memo: '', num: myNum};
       });
@@ -815,36 +823,33 @@
       myNum = null;
       myName = '';
       
-      saveState();
+      await saveState();
       render();
-      showToast(`✓ ${n}님 예약 완료! 다음 순번으로 이양`);
+      showToast(`✓ ${n}님 예약 완료! 다음 순번으로 전환됩니다`);
     }
     
-    // Clear selection
     function clearSelection() {
       selectedSlots.clear();
       render();
     }
     
-    // Notice management
-    function postNotice() {
+    async function postNotice() {
       const notice = document.getElementById('noticeInput').value.trim();
       if (!notice) { showToast('공지 내용을 입력해 주세요'); return; }
       state.notices.push({id: Date.now(), text: notice});
       document.getElementById('noticeInput').value = '';
-      saveState();
+      await saveState();
       render();
       showToast('✓ 공지 게시됨');
     }
     
-    function deleteNotice(id) {
+    async function deleteNotice(id) {
       state.notices = state.notices.filter(n => n.id !== id);
-      saveState();
+      await saveState();
       render();
       showToast('공지 삭제됨');
     }
     
-    // UI Functions
     function toggleSidebar() {
       sidebarOpen = !sidebarOpen;
       document.getElementById('sidebar').classList.toggle('sidebar-hidden', !sidebarOpen);
@@ -860,12 +865,9 @@
       render();
     }
     
-    // Render
     function render() {
       const dates = getWeekDates(weekOffset);
       const mode = getMode();
-      
-      // Banner
       const banner = document.getElementById('banner');
       const badge = document.getElementById('badge');
       
@@ -874,11 +876,10 @@
         badge.textContent = '🔒 잠김';
         const now = new Date();
         const unlock = new Date(now);
-        if (now.getDay() !== 1) {
-          unlock.setDate(now.getDate() + (8 - now.getDay()) % 7);
-        }
+        if (now.getDay() !== 1) unlock.setDate(now.getDate() + (8 - now.getDay()) % 7);
         unlock.setHours(9, 0, 0, 0);
-        banner.textContent = `⏰ 월요일 9시 오픈까지 ${formatCountdown(unlock - now)}`;
+        banner.textContent = `⏰ 오픈까지 ${formatCountdown(unlock - now)}`;
+        banner.style.background = 'var(--bg-secondary)';
       } else if (mode === 'queue') {
         badge.className = 'badge badge-queue';
         badge.textContent = '📋 순번제 09-10시';
@@ -890,16 +891,17 @@
           banner.style.background = isMe ? '#e8f5e9' : '#e3f2fd';
         } else {
           banner.textContent = '대기자 없음';
+          banner.style.background = 'var(--bg-secondary)';
         }
       } else {
         badge.className = 'badge badge-free';
         badge.textContent = '🔓 자율예약';
         banner.textContent = '자율 예약 기간입니다';
+        banner.style.background = 'var(--bg-secondary)';
       }
       
-      // Notice
       const noticeSection = document.getElementById('noticeSection');
-      if (state.notices.length > 0) {
+      if (state.notices && state.notices.length > 0) {
         noticeSection.style.display = 'block';
         noticeSection.innerHTML = `<div id="noticeList">${state.notices.map(n => `
           <div class="notice-item">
@@ -911,11 +913,9 @@
         noticeSection.style.display = 'none';
       }
       
-      // Week label
       document.getElementById('weekLabel').textContent = 
         `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
       
-      // Sidebar
       const sidebar = document.getElementById('sidebarContent');
       if (isAdmin) {
         sidebar.innerHTML = `
@@ -960,7 +960,7 @@
           `;
         }
         
-        if ((mode === 'queue' || mode === 'locked') && state.queue.length > 0) {
+        if ((mode === 'queue' || mode === 'locked') && state.queue && state.queue.length > 0) {
           const queueHtml = state.queue.map(q => {
             const color = getColorByName(q.name);
             const isActive = q.num === state.currentTurn && !q.done;
@@ -984,10 +984,9 @@
         }
       }
       
-      // Build table
+      // 테이블 헤더 구성 (호실 순서: 120, 128, 129, 219, 229 정렬 고정)
       let tableHtml = '<thead><tr><th style="width: 50px;">시간</th>';
-      
-      dates.forEach((d, i) => {
+      dates.forEach((d) => {
         const isToday = formatDate(d) === formatDate(new Date());
         const isMon = d.getDay() === 1;
         const style = isToday ? 'background: var(--bg-info); color: var(--text-info);' : '';
@@ -998,9 +997,7 @@
         </th>`;
       });
       
-      tableHtml += '</tr><tr>';
-     tableHtml += '</tr><tr><th>호실</th>'; 
-      
+      tableHtml += '</tr><tr><th>호실</th>'; 
       dates.forEach(() => {
         ROOMS.forEach(r => {
           tableHtml += `<th style="font-size: 8px;">${r.substring(0, 3)}</th>`;
@@ -1012,7 +1009,6 @@
         const isQueueHour = si === 0;
         tableHtml += `<tr><td class="time-label" style="${isQueueHour ? 'border-right: 2px solid var(--text-warning);' : ''}">${slot}</td>`;
         
-        // [수정 완료] 테이블 셀 출력 순서 고정 (날짜 -> 호실 순서)
         dates.forEach((d, di) => {
           const date = formatDate(d);
           const isMon = d.getDay() === 1;
@@ -1035,18 +1031,15 @@
               cellContent = '✓';
             }
             
-            // [수정 완료] 클릭 함수로 인자를 넘길 때도 (di, ri, si) 형태로 순서 일치시킴
             tableHtml += `<td class="${booking ? 'booked' : 'empty'}" style="${style}" onclick="clickSlot(${di}, ${ri}, ${si})" title="${booking ? booking.name + (booking.memo ? ' · ' + booking.memo : '') : ''}">${cellContent}</td>`;
           });
         });
-        
         tableHtml += '</tr>';
       });
       
       tableHtml += '</tbody>';
       document.getElementById('table').innerHTML = tableHtml;
       
-      // Footer
       const footer = document.getElementById('footer');
       const isMyTurn = myNum !== null && myNum === state.currentTurn && mode === 'queue';
       
@@ -1062,15 +1055,14 @@
       }
     }
     
-    // Initialize
     window.addEventListener('click', (e) => {
-      if (e.target.classList.contains('modal')) {
-        e.target.classList.remove('active');
-      }
+      if (e.target.classList.contains('modal')) e.target.classList.remove('active');
     });
     
-    loadState();
-    render();
+    // 페이지 접속 시 구글 서버에서 데이터 최초 가져오기
+    syncWithServer();
+    // 15초마다 서버 데이터 자동 갱신 (다른 사람이 예약한 내역을 실시간 수신)
+    setInterval(syncWithServer, 15000);
   </script>
 </body>
 </html>
