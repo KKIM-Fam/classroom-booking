@@ -84,37 +84,44 @@
     .badge-queue { background: var(--bg-warning); color: var(--text-warning); }
     .badge-free { background: var(--bg-success); color: var(--text-success); }
     
+    /* 공지사항 섹션 수정: 한 항목당 무조건 한 줄씩 보이도록 세로 배치 구조로 개선 */
     .notice-section {
-      max-height: 120px;
+      max-height: 150px;
       overflow-y: auto;
       background: var(--bg-warning);
       color: var(--text-warning);
       font-size: 12px;
       border-bottom: 0.5px solid var(--border-primary);
       padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
     
     .notice-item {
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.4);
       padding: 6px 8px;
       border-radius: 3px;
-      margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      width: 100%;
     }
     
     .notice-text {
       flex: 1;
       line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .notice-item button {
       padding: 2px 6px;
       font-size: 10px;
-      background: rgba(255,255,255,0.2);
-      border: 0.5px solid rgba(255,255,255,0.3);
+      background: rgba(0,0,0,0.05);
+      border: 0.5px solid var(--text-warning);
       color: var(--text-warning);
       border-radius: 2px;
       cursor: pointer;
@@ -396,7 +403,6 @@
 </head>
 <body>
   <div class="container">
-    <!-- Header -->
     <div class="header">
       <button class="btn" onclick="toggleSidebar()">≡</button>
       <div class="header-title">🏢 강의실 예약</div>
@@ -405,21 +411,14 @@
       <button class="btn" id="adminBtn" onclick="showAdminLogin()">관리자</button>
     </div>
     
-    <!-- Notice -->
-    <div class="notice-section" id="noticeSection" style="display: none;">
-      <div id="noticeList"></div>
-    </div>
+    <div class="notice-section" id="noticeSection" style="display: none;"></div>
     
-    <!-- Main Content -->
     <div class="main-content">
-      <!-- Sidebar -->
       <div class="sidebar" id="sidebar">
         <div id="sidebarContent"></div>
       </div>
       
-      <!-- Main -->
       <div class="main">
-        <!-- Week Navigation -->
         <div class="week-header">
           <button class="btn" onclick="changeWeek(-1)">◀</button>
           <span id="weekLabel" style="min-width: 80px; text-align: center;"></span>
@@ -431,7 +430,6 @@
           </label>
         </div>
         
-        <!-- Legend -->
         <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
           <div style="display: flex; align-items: center; gap: 4px;">
             <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
@@ -443,14 +441,12 @@
           </div>
         </div>
         
-        <!-- Table -->
         <div class="table-wrapper">
           <table id="table"></table>
         </div>
       </div>
     </div>
     
-    <!-- Footer -->
     <div class="footer" id="footer" style="display: none;">
       <div id="footerText" style="flex: 1; font-size: 12px;"></div>
       <button class="btn" onclick="clearSelection()">취소</button>
@@ -458,7 +454,6 @@
     </div>
   </div>
   
-  <!-- Modals -->
   <div class="modal" id="adminModal">
     <div class="modal-content">
       <div class="modal-title">🛡️ 관리자 로그인</div>
@@ -518,7 +513,6 @@
     </div>
   </div>
   
-  <!-- Toast -->
   <div class="toast" id="toast"></div>
   
   <script>
@@ -908,18 +902,19 @@
         banner.textContent = '자율 예약 기간입니다';
       }
       
-      // Notice
+      // Notice 수정: 렌더링 시 innerHTML을 명확히 한 줄(Item) 단위 배열로 생성하여 깔끔하게 세로 배치
       const noticeSection = document.getElementById('noticeSection');
       if (state.notices.length > 0) {
-        noticeSection.style.display = 'block';
-        noticeSection.innerHTML = `<div id="noticeList">${state.notices.map(n => `
+        noticeSection.style.display = 'flex';
+        noticeSection.innerHTML = state.notices.map(n => `
           <div class="notice-item">
             <div class="notice-text">📢 ${n.text}</div>
             ${isAdmin ? `<button onclick="deleteNotice(${n.id})">×</button>` : ''}
           </div>
-        `).join('')}</div>`;
+        `).join('');
       } else {
         noticeSection.style.display = 'none';
+        noticeSection.innerHTML = '';
       }
       
       // Week label
