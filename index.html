@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강의실 예약 시스템</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --bg-tertiary: #eeeeee;
+      --bg-info: #e3f2fd;
+      --bg-success: #e8f5e9;
+      --bg-warning: #fff3e0;
+      --bg-danger: #ffebee;
+      --text-primary: #212121;
+      --text-secondary: #757575;
+      --text-tertiary: #9e9e9e;
+      --text-info: #1976d2;
+      --text-success: #388e3c;
+      --text-warning: #f57c00;
+      --text-danger: #d32f2f;
+      --border-primary: #e0e0e0;
+      --border-secondary: #bdbdbd;
+      --border-tertiary: #9e9e9e;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--bg-primary);
+      border-bottom: 0.5px solid var(--border-primary);
+      flex-wrap: wrap;
+    }
+    
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .banner {
+      flex: 1;
+      min-width: 100px;
+      text-align: center;
+      font-size: 11px;
+      border-radius: 4px;
+      padding: 5px 8px;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+    }
+    
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    
+    .badge-locked { background: var(--bg-danger); color: var(--text-danger); }
+    .badge-queue { background: var(--bg-warning); color: var(--text-warning); }
+    .badge-free { background: var(--bg-success); color: var(--text-success); }
+    
+    .notice-section {
+      max-height: 120px;
+      overflow-y: auto;
+      background: var(--bg-warning);
+      color: var(--text-warning);
+      font-size: 12px;
+      border-bottom: 0.5px solid var(--border-primary);
+      padding: 8px;
+    }
+    
+    .notice-item {
+      background: rgba(255,255,255,0.1);
+      padding: 6px 8px;
+      border-radius: 3px;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .notice-text {
+      flex: 1;
+      line-height: 1.4;
+    }
+    
+    .notice-item button {
+      padding: 2px 6px;
+      font-size: 10px;
+      background: rgba(255,255,255,0.2);
+      border: 0.5px solid rgba(255,255,255,0.3);
+      color: var(--text-warning);
+      border-radius: 2px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    
+    .main-content {
+      display: flex;
+      flex: 1;
+      gap: 0;
+    }
+    
+    .sidebar {
+      width: 180px;
+      border-right: 0.5px solid var(--border-primary);
+      padding: 10px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+    }
+    
+    .sidebar-hidden { width: 0; border: none; padding: 0; }
+    
+    .sidebar-section {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin: 10px 0 6px 0;
+    }
+    
+    .input-group {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .input-group input {
+      flex: 1;
+      padding: 5px 6px;
+      border: 0.5px solid var(--border-primary);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    
+    .input-group button {
+      padding: 5px 8px;
+      font-size: 11px;
+    }
+    
+    .main {
+      flex: 1;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    
+    .week-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .btn {
+      padding: 6px 10px;
+      border: 0.5px solid var(--border-primary);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    
+    .btn:hover {
+      background: var(--bg-secondary);
+    }
+    
+    .btn-primary {
+      background: var(--bg-success);
+      color: var(--text-success);
+      border-color: var(--border-secondary);
+    }
+    
+    .btn-danger {
+      color: var(--text-danger);
+      border-color: var(--border-secondary);
+    }
+    
+    .table-wrapper {
+      overflow-x: auto;
+      flex: 1;
+    }
+    
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 600px;
+      font-size: 11px;
+      table-layout: fixed;
+    }
+    
+    th {
+      background: var(--bg-secondary);
+      border: 0.5px solid var(--border-primary);
+      padding: 4px 2px;
+      text-align: center;
+      font-weight: 600;
+    }
+    
+    td {
+      border: 0.5px solid var(--border-primary);
+      height: 26px;
+      text-align: center;
+      cursor: pointer;
+      transition: opacity 0.1s;
+    }
+    
+    td:hover {
+      opacity: 0.8;
+    }
+    
+    td.time-label {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      cursor: default;
+      padding: 0 4px;
+      font-weight: 600;
+      font-size: 10px;
+      width: 50px;
+    }
+    
+    td.empty {
+      background: var(--bg-primary);
+    }
+    
+    td.booked {
+      font-size: 9px;
+      font-weight: 600;
+      cursor: default;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      line-height: 1.2;
+    }
+    
+    td.selected {
+      background: #c8c2ff;
+      color: #4a3f8f;
+      font-weight: 600;
+    }
+    
+    .footer {
+      border-top: 0.5px solid var(--border-primary);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-primary);
+    }
+    
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      z-index: 100;
+      padding-top: 80px;
+      overflow-y: auto;
+    }
+    
+    .modal.active { display: flex; }
+    
+    .modal-content {
+      background: var(--bg-primary);
+      border-radius: 8px;
+      border: 0.5px solid var(--border-primary);
+      padding: 16px;
+      width: 300px;
+      max-width: 90%;
+      margin-bottom: 40px;
+    }
+    
+    .modal-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    
+    .modal-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      margin-bottom: 3px;
+      display: block;
+    }
+    
+    .modal-input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 0.5px solid var(--border-primary);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+    
+    .toast {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-primary);
+      border: 0.5px solid var(--border-primary);
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 12px;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    
+    .toast.show { opacity: 1; }
+    
+    .admin-badge {
+      background: var(--bg-danger);
+      color: var(--text-danger);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .my-badge {
+      background: var(--bg-success);
+      color: var(--text-success);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 7px;
+      border: 0.5px solid var(--border-primary);
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    
+    .queue-item.active {
+      background: var(--bg-info);
+      border-color: var(--text-info);
+    }
+    
+    .queue-num {
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+      font-size: 10px;
+      min-width: 25px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <button class="btn" onclick="toggleSidebar()">≡</button>
+      <div class="header-title">🏢 강의실 예약</div>
+      <div class="banner" id="banner">로딩 중...</div>
+      <div class="badge" id="badge">잠김</div>
+      <button class="btn" id="adminBtn" onclick="showAdminLogin()">관리자</button>
+    </div>
+    
+    <!-- Notice -->
+    <div class="notice-section" id="noticeSection" style="display: none;">
+      <div id="noticeList"></div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Sidebar -->
+      <div class="sidebar" id="sidebar">
+        <div id="sidebarContent"></div>
+      </div>
+      
+      <!-- Main -->
+      <div class="main">
+        <!-- Week Navigation -->
+        <div class="week-header">
+          <button class="btn" onclick="changeWeek(-1)">◀</button>
+          <span id="weekLabel" style="min-width: 80px; text-align: center;"></span>
+          <button class="btn" onclick="changeWeek(1)">▶</button>
+          <span style="flex: 1;"></span>
+          <label style="font-size: 10px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <input type="checkbox" id="testMode" onchange="toggleTestMode()">
+            테스트
+          </label>
+        </div>
+        
+        <!-- Legend -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
+            <span>빈 칸</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <div style="width: 12px; height: 12px; background: #c8c2ff; border-radius: 2px;"></div>
+            <span>선택 중</span>
+          </div>
+        </div>
+        
+        <!-- Table -->
+        <div class="table-wrapper">
+          <table id="table"></table>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer" id="footer" style="display: none;">
+      <div id="footerText" style="flex: 1; font-size: 12px;"></div>
+      <button class="btn" onclick="clearSelection()">취소</button>
+      <button class="btn btn-primary" id="submitBtn" onclick="submitBooking()" disabled>완료</button>
+    </div>
+  </div>
+  
+  <!-- Modals -->
+  <div class="modal" id="adminModal">
+    <div class="modal-content">
+      <div class="modal-title">🛡️ 관리자 로그인</div>
+      <label class="modal-label">비밀번호</label>
+      <input type="password" class="modal-input" id="adminPassword" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doAdminLogin()">
+      <div class="modal-buttons">
+        <button class="btn" onclick="closeModal('adminModal')">취소</button>
+        <button class="btn btn-primary" onclick="doAdminLogin()">로그인</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="modal" id="bookingModal">
+    <div class="modal-content">
+      <div class="modal-title" id="bookingTitle">자율 예약</div>
+      <div style="font-size: 13px; font-weight: 500; margin-bottom: 8px;" id="bookingRoom"></div>
+      <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="bookingTime"></div>
+      <label class="modal-label">예약자명</label>
+      <input type="text" class="modal-input" id="bookingName" placeholder="성함 입력" maxlength="14">
+      <label class="modal-label">메모 (선택)</label>
+      <input type="text" class="modal-input" id="bookingMemo" placeholder="예: 일반화학 실험">
+      <div class="modal-buttons">
+        <button class="btn" onclick="closeModal('bookingModal')">취소</button>
+        <button class="btn btn-primary" onclick="saveBooking()">예약</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="modal" id="adminBookModal">
+    <div class="modal-content">
+      <div class="modal-title">강제 예약</div>
+      <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="adminBookInfo"></div>
+      <label class="modal-label">예약자명</label>
+      <input type="text" class="modal-input" id="adminBookName" placeholder="">
+      <label class="modal-label">메모</label>
+      <input type="text" class="modal-input" id="adminBookMemo" placeholder="">
+      <div class="modal-buttons">
+        <button class="btn" onclick="closeModal('adminBookModal')">취소</button>
+        <button class="btn btn-danger" id="deleteBtn" style="display: none;" onclick="deleteAdminBooking()">삭제</button>
+        <button class="btn btn-primary" onclick="saveAdminBooking()">등록</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="modal" id="adminSettingModal">
+    <div class="modal-content">
+      <div class="modal-title">🔐 관리자 설정</div>
+      <label class="modal-label">새 비밀번호</label>
+      <input type="password" class="modal-input" id="newPassword" placeholder="새 비밀번호 입력">
+      <label class="modal-label">비밀번호 확인</label>
+      <input type="password" class="modal-input" id="confirmPassword" placeholder="비밀번호 다시 입력" onkeydown="if(event.key==='Enter')saveAdminPassword()">
+      <div style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">최소 4자 이상 입력하세요</div>
+      <div class="modal-buttons">
+        <button class="btn" onclick="closeModal('adminSettingModal')">취소</button>
+        <button class="btn btn-primary" onclick="saveAdminPassword()">변경</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+  
+  <script>
+    // Constants
+    const ROOMS = ['120호', '128호', '129호', '219호', '229호'];
+    const SLOTS = Array.from({length: 15}, (_, i) => `${String(i+9).padStart(2, '0')}:00`);
+    const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+    const COLORS = [
+      {bg: '#B5D4F4', tc: '#0C447C'}, {bg: '#9FE1CB', tc: '#085041'},
+      {bg: '#FAC775', tc: '#633806'}, {bg: '#F5C4B3', tc: '#4A1B0C'},
+      {bg: '#C0DD97', tc: '#27500A'}, {bg: '#CECBF6', tc: '#26215C'},
+      {bg: '#F4C0D1', tc: '#72243E'}, {bg: '#D3D1C7', tc: '#2C2C2A'},
+    ];
+    
+    // State (초기 데이터 구조 규정)
+    let state = {
+      queue: [],
+      nextNum: 1,
+      currentTurn: null,
+      bookings: {},
+      notices: [],
+      nameColors: {},
+      adminPassword: '0000',
+    };
+    
+    let myNum = null;
+    let myName = '';
+    let selectedSlots = new Set();
+    let isAdmin = false;
+    let testMode = false;
+    let weekOffset = 0;
+    let sidebarOpen = true;
+    let pendingBooking = null;
+    let pendingAdminBooking = null;
+    
+    // Get formatted date
+    const formatDate = (d) => d.toISOString().split('T')[0];
+    
+    // Get week dates
+    function getWeekDates(offset = 0) {
+      const today = new Date();
+      const start = new Date(today);
+      start.setDate(today.getDate() - ((today.getDay() + 6) % 7) + offset * 7);
+      
+      return Array.from({length: 7}, (_, i) => {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        return d;
+      });
+    }
+    
+    // Get mode (locked, queue, free)
+    function getMode() {
+      if (testMode) return 'free';
+      
+      const now = new Date();
+      if (now.getDay() === 1) {
+        if (now.getHours() < 9) return 'locked';
+        if (now.getHours() === 9) return 'queue';
+      }
+      return 'free';
+    }
+    
+    // Format countdown
+    function formatCountdown(ms) {
+      if (ms < 0) return '오픈 시간';
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      const h = Math.floor(m / 60);
+      const d = Math.floor(h / 24);
+      
+      if (d > 0) return `${d}일 ${h % 24}시간 ${m % 60}분`;
+      if (h > 0) return `${h}시간 ${m % 60}분`;
+      return `${m}분 ${s % 60}초`;
+    }
+    
+    // Key generator
+    const slotKey = (date, roomIdx, timeIdx) => `${date}_${roomIdx}_${timeIdx}`;
+    
+    // Get or assign color by name (방어적 코드 강화)
+    function getColorByName(name) {
+      if (!name) return COLORS[7]; // 이름이 없으면 기본 회색 처리
+      if (name === 'admin' || name === '관리자') return COLORS[7]; // 관리자 예약 시 회색 고정
+      
+      // 혹시 모를 로드 예외를 위한 방어 코드
+      if (!state.nameColors) {
+        state.nameColors = {};
+      }
+      
+      if (!state.nameColors[name]) {
+        const usedIndices = Object.values(state.nameColors);
+        let idx = 0;
+        while (usedIndices.includes(idx) && idx < COLORS.length) idx++;
+        if (idx >= COLORS.length) idx = Object.keys(state.nameColors).length % COLORS.length;
+        state.nameColors[name] = idx;
+        saveState();
+      }
+      return COLORS[state.nameColors[name]];
+    }
+    
+    // Save state to localStorage
+    function saveState() {
+      localStorage.setItem('classroomBooking', JSON.stringify(state));
+      localStorage.setItem('myNum', JSON.stringify(myNum));
+      localStorage.setItem('myName', JSON.stringify(myName));
+    }
+    
+    // Load state from localStorage (과거 캐시 충돌 방지 핵심 구문)
+    function loadState() {
+      const saved = localStorage.getItem('classroomBooking');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // 과거 저장 데이터와 현재 초기 데이터 구조를 안전하게 융합(Merge)
+          state = Object.assign({}, state, parsed);
+          
+          // 신규 추가 필드 유실 여부 개별 검증
+          if (!state.nameColors) state.nameColors = {};
+          if (!state.notices) state.notices = [];
+          if (!state.bookings) state.bookings = {};
+          if (!state.queue) state.queue = [];
+        } catch (e) {
+          console.error("데이터 로드 에러, 초기 데이터로 진행합니다.", e);
+        }
+      }
+      
+      const savedMyNum = localStorage.getItem('myNum');
+      if (savedMyNum) myNum = JSON.parse(savedMyNum);
+      
+      const savedMyName = localStorage.getItem('myName');
+      if (savedMyName) myName = JSON.parse(savedMyName);
+    }
+    
+    // Toast notification
+    function showToast(msg, duration = 2500) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), duration);
+    }
+    
+    // Modal management
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    
+    // Admin login
+    function showAdminLogin() {
+      if (isAdmin) {
+        isAdmin = false;
+        document.getElementById('adminBtn').textContent = '관리자';
+        render();
+        return;
+      }
+      openModal('adminModal');
+      setTimeout(() => document.getElementById('adminPassword').focus(), 100);
+    }
+    
+    function doAdminLogin() {
+      if (document.getElementById('adminPassword').value === state.adminPassword) {
+        isAdmin = true;
+        closeModal('adminModal');
+        document.getElementById('adminBtn').textContent = '관리자✓';
+        showToast('✓ 관리자 모드 활성화');
+        render();
+      } else {
+        showToast('비밀번호가 틀렸습니다');
+      }
+    }
+    
+    // 관리자 비밀번호 변경 함수
+    function saveAdminPassword() {
+      const newPw = document.getElementById('newPassword').value.trim();
+      const confirmPw = document.getElementById('confirmPassword').value.trim();
+      
+      if (!newPw || !confirmPw) {
+        showToast('비밀번호를 입력해 주세요');
+        return;
+      }
+      
+      if (newPw.length < 4) {
+        showToast('비밀번호는 최소 4자 이상이어야 합니다');
+        return;
+      }
+      
+      if (newPw !== confirmPw) {
+        showToast('비밀번호가 일치하지 않습니다');
+        return;
+      }
+      
+      state.adminPassword = newPw;
+      saveState();
+      closeModal('adminSettingModal');
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+      showToast('✓ 비밀번호가 변경되었습니다');
+    }
+    
+    // Queue management
+    function joinQueue() {
+      const name = document.getElementById('queueInput')?.value?.trim();
+      if (!name) { showToast('성함을 입력해 주세요'); return; }
+      if (myNum !== null) { showToast('이미 순번을 받으셨습니다'); return; }
+      
+      const num = state.nextNum++;
+      state.queue.push({num, name, done: false});
+      myNum = num;
+      myName = name;
+      
+      if (state.currentTurn === null) state.currentTurn = num;
+      
+      document.getElementById('queueInput').value = '';
+      saveState();
+      render();
+      showToast(`✓ ${num}번 순번이 부여되었습니다`);
+    }
+    
+    // Slot click
+    function clickSlot(weekIdx, roomIdx, timeIdx) {
+      const dates = getWeekDates(weekOffset);
+      const date = formatDate(dates[weekIdx]);
+      const key = slotKey(date, roomIdx, timeIdx);
+      const mode = getMode();
+      
+      if (isAdmin) {
+        pendingAdminBooking = {date, roomIdx, timeIdx, key};
+        const d = dates[weekIdx];
+        document.getElementById('adminBookInfo').textContent = 
+          `${ROOMS[roomIdx]} — ${d.getMonth()+1}/${d.getDate()} ${SLOTS[timeIdx]}${state.bookings[key] ? ` | 현재: ${state.bookings[key].name}` : ''}`;
+        document.getElementById('adminBookName').value = state.bookings[key]?.name || '';
+        document.getElementById('adminBookMemo').value = state.bookings[key]?.memo || '';
+        document.getElementById('deleteBtn').style.display = state.bookings[key] ? '' : 'none';
+        openModal('adminBookModal');
+        return;
+      }
+      
+      if (mode === 'locked') {
+        showToast('월요일 오전 9시에 예약이 시작됩니다');
+        return;
+      }
+      
+      if (mode === 'queue') {
+        if (myNum === null) { showToast('순번을 먼저 받아 주세요'); return; }
+        if (state.currentTurn !== myNum) {
+          const qItem = state.queue.find(q => q.num === state.currentTurn);
+          showToast(`현재 ${state.currentTurn}번 ${qItem?.name || ''}님이 입력 중입니다`);
+          return;
+        }
+        if (state.bookings[key]) { showToast('이미 예약된 슬롯입니다'); return; }
+        
+        selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
+        render();
+        return;
+      }
+      
+      if (state.bookings[key]) {
+        const b = state.bookings[key];
+        showToast(`${b.name}${b.memo ? ' · ' + b.memo : ''}`);
+        return;
+      }
+      
+      pendingBooking = {date, roomIdx, timeIdx, key};
+      const d = dates[weekIdx];
+      document.getElementById('bookingRoom').textContent = ROOMS[roomIdx];
+      document.getElementById('bookingTime').textContent = `${d.getMonth()+1}/${d.getDate()} (${DAYS[d.getDay()]}) ${SLOTS[timeIdx]}`;
+      document.getElementById('bookingName').value = '';
+      document.getElementById('bookingMemo').value = '';
+      openModal('bookingModal');
+      setTimeout(() => document.getElementById('bookingName').focus(), 100);
+    }
+    
+    // Save booking
+    function saveBooking() {
+      if (!pendingBooking) return;
+      const name = document.getElementById('bookingName').value.trim();
+      if (!name) { showToast('예약자명을 입력해 주세요'); return; }
+      
+      const memo = document.getElementById('bookingMemo').value.trim();
+      const color = getColorByName(name);
+      state.bookings[pendingBooking.key] = {name, memo, num: null};
+      closeModal('bookingModal');
+      pendingBooking = null;
+      saveState();
+      render();
+      showToast('✓ 예약 완료');
+    }
+    
+    // Admin booking
+    function saveAdminBooking() {
+      if (!pendingAdminBooking) return;
+      const name = document.getElementById('adminBookName').value.trim() || '관리자';
+      const memo = document.getElementById('adminBookMemo').value.trim();
+      getColorByName(name);
+      state.bookings[pendingAdminBooking.key] = {name, memo, num: 'admin'};
+      closeModal('adminBookModal');
+      pendingAdminBooking = null;
+      saveState();
+      render();
+      showToast('✓ 강제 예약 완료');
+    }
+    
+    function deleteAdminBooking() {
+      if (pendingAdminBooking && state.bookings[pendingAdminBooking.key]) {
+        delete state.bookings[pendingAdminBooking.key];
+        closeModal('adminBookModal');
+        pendingAdminBooking = null;
+        saveState();
+        render();
+        showToast('예약 삭제됨');
+      }
+    }
+    
+    // Submit booking
+    function submitBooking() {
+      if (selectedSlots.size === 0) { showToast('선택한 슬롯이 없습니다'); return; }
+      
+      const color = getColorByName(myName);
+      selectedSlots.forEach(key => {
+        state.bookings[key] = {name: myName, memo: '', num: myNum};
+      });
+      
+      selectedSlots.clear();
+      const me = state.queue.find(q => q.num === myNum);
+      if (me) me.done = true;
+      
+      const next = state.queue.find(q => !q.done && q.num !== myNum);
+      state.currentTurn = next ? next.num : null;
+      
+      const n = myName;
+      myNum = null;
+      myName = '';
+      
+      saveState();
+      render();
+      showToast(`✓ ${n}님 예약 완료! 다음 순번으로 이양`);
+    }
+    
+    // Clear selection
+    function clearSelection() {
+      selectedSlots.clear();
+      render();
+    }
+    
+    // Notice management
+    function postNotice() {
+      const notice = document.getElementById('noticeInput').value.trim();
+      if (!notice) { showToast('공지 내용을 입력해 주세요'); return; }
+      state.notices.push({id: Date.now(), text: notice});
+      document.getElementById('noticeInput').value = '';
+      saveState();
+      render();
+      showToast('✓ 공지 게시됨');
+    }
+    
+    function deleteNotice(id) {
+      state.notices = state.notices.filter(n => n.id !== id);
+      saveState();
+      render();
+      showToast('공지 삭제됨');
+    }
+    
+    // UI Functions
+    function toggleSidebar() {
+      sidebarOpen = !sidebarOpen;
+      document.getElementById('sidebar').classList.toggle('sidebar-hidden', !sidebarOpen);
+    }
+    
+    // 캘린더 주 변경 함수
+    function changeWeek(d) {
+      weekOffset += d;
+      render();
+    }
+    
+    function toggleTestMode() {
+      testMode = document.getElementById('testMode').checked;
+      render();
+    }
+    
+    // Render
+    function render() {
+      const dates = getWeekDates(weekOffset);
+      const mode = getMode();
+      
+      // Banner
+      const banner = document.getElementById('banner');
+      const badge = document.getElementById('badge');
+      
+      if (mode === 'locked') {
+        badge.className = 'badge badge-locked';
+        badge.textContent = '🔒 잠김';
+        const now = new Date();
+        const unlock = new Date(now);
+        if (now.getDay() !== 1) {
+          unlock.setDate(now.getDate() + (8 - now.getDay()) % 7);
+        }
+        unlock.setHours(9, 0, 0, 0);
+        banner.textContent = `⏰ 월요일 9시 오픈까지 ${formatCountdown(unlock - now)}`;
+      } else if (mode === 'queue') {
+        badge.className = 'badge badge-queue';
+        badge.textContent = '📋 순번제 09-10시';
+        if (state.currentTurn) {
+          const qItem = state.queue.find(q => q.num === state.currentTurn);
+          const isMe = state.currentTurn === myNum;
+          const color = getColorByName(qItem?.name || '');
+          banner.innerHTML = `<span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 500;">${state.currentTurn}번 ${qItem?.name || ''}</span>님 입력 중${isMe ? ' — <strong>내 차례!</strong>' : ''}`;
+          banner.style.background = isMe ? '#e8f5e9' : '#e3f2fd';
+        } else {
+          banner.textContent = '대기자 없음';
+        }
+      } else {
+        badge.className = 'badge badge-free';
+        badge.textContent = '🔓 자율예약';
+        banner.textContent = '자율 예약 기간입니다';
+      }
+      
+      // Notice
+      const noticeSection = document.getElementById('noticeSection');
+      if (state.notices && state.notices.length > 0) {
+        noticeSection.style.display = 'block';
+        noticeSection.innerHTML = `<div id="noticeList">${state.notices.map(n => `
+          <div class="notice-item">
+            <div class="notice-text">📢 ${n.text}</div>
+            ${isAdmin ? `<button onclick="deleteNotice(${n.id})">×</button>` : ''}
+          </div>
+        `).join('')}</div>`;
+      } else {
+        noticeSection.style.display = 'none';
+      }
+      
+      // Week label
+      document.getElementById('weekLabel').textContent = 
+        `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
+      
+      // Sidebar
+      const sidebar = document.getElementById('sidebarContent');
+      if (isAdmin) {
+        sidebar.innerHTML = `
+          <div class="admin-badge">🛡️ 관리자 모드</div>
+          <div class="sidebar-section" style="margin-top: 12px;">📢 공지사항</div>
+          <textarea id="noticeInput" style="width: 100%; padding: 6px; border: 0.5px solid var(--border-primary); border-radius: 4px; resize: vertical; min-height: 60px; font-size: 11px;" placeholder="공지 내용 입력"></textarea>
+          <button class="btn btn-primary" style="width: 100%; margin-top: 4px;" onclick="postNotice()">게시</button>
+          <button class="btn" style="width: 100%; margin-top: 8px; font-size: 11px;" onclick="openModal('adminSettingModal')">🔐 비밀번호 변경</button>
+        `;
+      } else {
+        if (mode === 'queue') {
+          if (myNum !== null) {
+            const color = getColorByName(myName);
+            sidebar.innerHTML = `
+              <div class="my-badge">
+                <span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 10px;">${myNum}번</span>
+                <strong>${myName}</strong>님 대기
+              </div>
+            `;
+          } else {
+            sidebar.innerHTML = `
+              <div class="sidebar-section">🎫 순번 등록</div>
+              <div class="input-group">
+                <input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()">
+                <button class="btn" onclick="joinQueue()">+</button>
+              </div>
+            `;
+          }
+        } else if (mode === 'locked') {
+          sidebar.innerHTML = `
+            <div class="sidebar-section">🎫 사전 순번 등록</div>
+            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">월요일 9시 전에 순번을 받아 두세요.</p>
+            <div class="input-group" style="margin-top: 8px;">
+              <input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()">
+              <button class="btn" onclick="joinQueue()">+</button>
+            </div>
+          `;
+        } else {
+          sidebar.innerHTML = `
+            <div class="sidebar-section">📅 자율 예약</div>
+            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">빈 칸을 눌러 예약하세요.</p>
+          `;
+        }
+        
+        if ((mode === 'queue' || mode === 'locked') && state.queue && state.queue.length > 0) {
+          const queueHtml = state.queue.map(q => {
+            const color = getColorByName(q.name);
+            const isActive = q.num === state.currentTurn && !q.done;
+            return `
+              <div class="queue-item${isActive ? ' active' : ''}${q.done ? ' done' : ''}">
+                <span class="queue-num" style="background: ${color.bg}; color: ${color.tc};">${q.num}</span>
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${q.name}</span>
+                <span style="font-size: 10px; color: var(--text-secondary);">${q.done ? '완료' : isActive ? '입력' : '대기'}</span>
+              </div>
+            `;
+          }).join('');
+          
+          const queueDiv = document.createElement('div');
+          queueDiv.innerHTML = `
+            <div class="sidebar-section" style="margin-top: 10px;">📋 대기 목록</div>
+            <div style="display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto;">
+              ${queueHtml}
+            </div>
+          `;
+          sidebar.appendChild(queueDiv);
+        }
+      }
+      
+      // Build table
+      let tableHtml = '<thead><tr><th style="width: 50px;">시간</th>';
+      
+      dates.forEach((d, i) => {
+        const isToday = formatDate(d) === formatDate(new Date());
+        const isMon = d.getDay() === 1;
+        const style = isToday ? 'background: var(--bg-info); color: var(--text-info);' : '';
+        const bottom = isMon && !testMode ? 'border-bottom: 2px solid var(--text-warning);' : '';
+        
+        tableHtml += `<th colspan="5" style="${style}${bottom}; padding: 4px 2px; font-size: 10px;">
+          ${d.getMonth()+1}/${d.getDate()}<br>${DAYS[d.getDay()]}${isMon ? '<br><span style="font-size: 8px; opacity: 0.6;">순번→자율</span>' : ''}
+        </th>`;
+      });
+      
+      tableHtml += '</tr><tr>';
+      dates.forEach(() => {
+        ROOMS.forEach(r => {
+          tableHtml += `<th style="font-size: 8px;">${r.substring(0, 3)}</th>`;
+        });
+      });
+      tableHtml += '</tr></thead><tbody>';
+      
+      SLOTS.forEach((slot, si) => {
+        const isQueueHour = si === 0;
+        tableHtml += `<tr><td class="time-label" style="${isQueueHour ? 'border-right: 2px solid var(--text-warning);' : ''}">${slot}</td>`;
+        
+        dates.forEach((d, di) => {
+          const date = formatDate(d);
+          const isMon = d.getDay() === 1;
+          
+          ROOMS.forEach((_, ri) => {
+            const key = slotKey(date, ri, si);
+            const booking = state.bookings ? state.bookings[key] : null;
+            const isSelected = selectedSlots.has(key);
+            const topBorder = isMon && si === 0 && !testMode ? 'border-top: 1.5px solid #FAC775;' : '';
+            
+            let style = topBorder;
+            let cellContent = '';
+            
+            if (booking) {
+              const color = getColorByName(booking.name);
+              style += `background: ${color.bg}; color: ${color.tc};`;
+              cellContent = booking.name;
+            } else if (isSelected) {
+              style += 'background: #c8c2ff; color: #4a3f8f;';
+              cellContent = '✓';
+            }
+            
+            tableHtml += `<td class="${booking ? 'booked' : 'empty'}" style="${style}" onclick="clickSlot(${di}, ${ri}, ${si})" title="${booking ? booking.name + (booking.memo ? ' · ' + booking.memo : '') : ''}">${cellContent}</td>`;
+          });
+        });
+        
+        tableHtml += '</tr>';
+      });
+      
+      tableHtml += '</tbody>';
+      document.getElementById('table').innerHTML = tableHtml;
+      
+      // Footer
+      const footer = document.getElementById('footer');
+      const isMyTurn = myNum !== null && myNum === state.currentTurn && mode === 'queue';
+      
+      if (isMyTurn || selectedSlots.size > 0) {
+        footer.style.display = 'flex';
+        const count = selectedSlots.size;
+        document.getElementById('footerText').innerHTML = isMyTurn
+          ? (count === 0 ? `<strong>${myName}</strong>님, 빈 칸을 클릭해 선택하세요` : `<strong style="color: var(--text-success);">${count}개</strong> 선택됨`)
+          : `${count}개 슬롯 선택됨`;
+        document.getElementById('submitBtn').disabled = count === 0;
+      } else {
+        footer.style.display = 'none';
+      }
+    }
+    
+    // Initialize
+    window.addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal')) {
+        e.target.classList.remove('active');
+      }
+    });
+    
+    // 데이터 불러오기 및 초기 렌더링 호출
+    loadState();
+    render();
+
+    // 1초마다 카운트다운 타이머 갱신을 위해 상단 바 실시간 업데이트 설정
+    setInterval(() => {
+      if (getMode() === 'locked') {
+        render();
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
