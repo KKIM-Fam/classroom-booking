@@ -999,6 +999,8 @@
       });
       
       tableHtml += '</tr><tr>';
+     tableHtml += '</tr><tr><th>호실</th>'; 
+      
       dates.forEach(() => {
         ROOMS.forEach(r => {
           tableHtml += `<th style="font-size: 8px;">${r.substring(0, 3)}</th>`;
