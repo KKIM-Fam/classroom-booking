@@ -1017,15 +1017,40 @@
       });
       tableHtml += '</tr></thead><tbody>';
       
-      SLOTS.forEach((slot, si) => {
+SLOTS.forEach((slot, si) => {
         const isQueueHour = si === 0;
         tableHtml += `<tr><td class="time-label" style="${isQueueHour ? 'border-right: 2px solid var(--text-warning);' : ''}">${slot}</td>`;
         
+        // ★ [교정] 날짜(di) 루프가 먼저 돌고, 그 안에서 강의실(ri) 루프가 도는 순서로 수정되었습니다.
         dates.forEach((d, di) => {
           const date = formatDate(d);
           const isMon = d.getDay() === 1;
           
           ROOMS.forEach((_, ri) => {
+            const key = slotKey(date, ri, si);
+            const booking = state.bookings[key];
+            const isSelected = selectedSlots.has(key);
+            const topBorder = isMon && si === 0 && !testMode ? 'border-top: 1.5px solid #FAC775;' : '';
+            
+            let style = topBorder;
+            let cellContent = '';
+            
+            if (booking) {
+              const color = getColorByName(booking.name);
+              style += `background: ${color.bg}; color: ${color.tc};`;
+              cellContent = booking.name;
+            } else if (isSelected) {
+              style += 'background: #c8c2ff; color: #4a3f8f;';
+              cellContent = '✓';
+            }
+            
+            // ★ [교정] onclick="clickSlot"에 전달하는 인자 순서도 화면 배치 순서(di, ri, si)와 일치시켰습니다.
+            tableHtml += `<td class="${booking ? 'booked' : 'empty'}" style="${style}" onclick="clickSlot(${di}, ${ri}, ${si})" title="${booking ? booking.name + (booking.memo ? ' · ' + booking.memo : '') : ''}">${cellContent}</td>`;
+          });
+        });
+        
+        tableHtml += '</tr>';
+      });
             const key = slotKey(date, ri, si);
             const booking = state.bookings[key];
             const isSelected = selectedSlots.has(key);
