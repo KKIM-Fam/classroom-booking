@@ -1,508 +1,4 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>강의실 예약 시스템</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css">
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
-    :root {
-      --bg-primary: #ffffff;
-      --bg-secondary: #f5f5f5;
-      --bg-tertiary: #eeeeee;
-      --bg-info: #e3f2fd;
-      --bg-success: #e8f5e9;
-      --bg-warning: #fff3e0;
-      --bg-danger: #ffebee;
-      --text-primary: #212121;
-      --text-secondary: #757575;
-      --text-tertiary: #9e9e9e;
-      --text-info: #1976d2;
-      --text-success: #388e3c;
-      --text-warning: #f57c00;
-      --text-danger: #d32f2f;
-      --border-primary: #e0e0e0;
-      --border-secondary: #bdbdbd;
-      --border-tertiary: #9e9e9e;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      font-size: 13px;
-    }
-    
-    .container {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-    
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      background: var(--bg-primary);
-      border-bottom: 0.5px solid var(--border-primary);
-      flex-wrap: wrap;
-    }
-    
-    .header-title {
-      font-size: 14px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    
-    .banner {
-      flex: 1;
-      min-width: 100px;
-      text-align: center;
-      font-size: 11px;
-      border-radius: 4px;
-      padding: 5px 8px;
-      background: var(--bg-secondary);
-      color: var(--text-secondary);
-    }
-    
-    .badge {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 4px;
-      white-space: nowrap;
-    }
-    
-    .badge-locked { background: var(--bg-danger); color: var(--text-danger); }
-    .badge-queue { background: var(--bg-warning); color: var(--text-warning); }
-    .badge-free { background: var(--bg-success); color: var(--text-success); }
-    
-    .notice {
-      padding: 8px 12px;
-      background: var(--bg-warning);
-      color: var(--text-warning);
-      font-size: 12px;
-      border-bottom: 0.5px solid var(--border-primary);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    .main-content {
-      display: flex;
-      flex: 1;
-      gap: 0;
-    }
-    
-    .sidebar {
-      width: 180px;
-      border-right: 0.5px solid var(--border-primary);
-      padding: 10px;
-      overflow-y: auto;
-      background: var(--bg-primary);
-    }
-    
-    .sidebar-hidden { width: 0; border: none; padding: 0; }
-    
-    .sidebar-section {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin: 10px 0 6px 0;
-    }
-    
-    .sidebar-content {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    
-    .input-group {
-      display: flex;
-      gap: 4px;
-    }
-    
-    .input-group input {
-      flex: 1;
-      padding: 5px 6px;
-      border: 0.5px solid var(--border-primary);
-      border-radius: 4px;
-      font-size: 12px;
-    }
-    
-    .input-group button {
-      padding: 5px 8px;
-      font-size: 11px;
-    }
-    
-    .main {
-      flex: 1;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      overflow-y: auto;
-    }
-    
-    .week-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    
-    .btn {
-      padding: 6px 10px;
-      border: 0.5px solid var(--border-primary);
-      border-radius: 4px;
-      background: transparent;
-      color: var(--text-secondary);
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    
-    .btn:hover {
-      background: var(--bg-secondary);
-    }
-    
-    .btn-primary {
-      background: var(--bg-success);
-      color: var(--text-success);
-      border-color: var(--border-secondary);
-    }
-    
-    .btn-danger {
-      color: var(--text-danger);
-      border-color: var(--border-secondary);
-    }
-    
-    .table-wrapper {
-      overflow-x: auto;
-      flex: 1;
-    }
-    
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      min-width: 600px;
-      font-size: 11px;
-      table-layout: fixed;
-    }
-    
-    th {
-      background: var(--bg-secondary);
-      border: 0.5px solid var(--border-primary);
-      padding: 4px 2px;
-      text-align: center;
-      font-weight: 600;
-    }
-    
-    td {
-      border: 0.5px solid var(--border-primary);
-      height: 26px;
-      text-align: center;
-      cursor: pointer;
-      transition: opacity 0.1s;
-    }
-    
-    td:hover {
-      opacity: 0.8;
-    }
-    
-    td.time-label {
-      background: var(--bg-secondary);
-      color: var(--text-secondary);
-      cursor: default;
-      padding: 0 4px;
-      font-weight: 600;
-      font-size: 10px;
-      width: 50px;
-    }
-    
-    td.empty {
-      background: var(--bg-primary);
-    }
-    
-    td.booked {
-      font-size: 9px;
-      font-weight: 600;
-      cursor: default;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2px;
-      line-height: 1.2;
-    }
-    
-    td.selected {
-      background: #c8c2ff;
-      color: #4a3f8f;
-      font-weight: 600;
-    }
-    
-    .footer {
-      border-top: 0.5px solid var(--border-primary);
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--bg-primary);
-    }
-    
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.4);
-      display: none;
-      align-items: flex-start;
-      justify-content: center;
-      z-index: 100;
-      padding-top: 80px;
-      overflow-y: auto;
-    }
-    
-    .modal.active { display: flex; }
-    
-    .modal-content {
-      background: var(--bg-primary);
-      border-radius: 8px;
-      border: 0.5px solid var(--border-primary);
-      padding: 16px;
-      width: 300px;
-      max-width: 90%;
-      margin-bottom: 40px;
-    }
-    
-    .modal-title {
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 12px;
-    }
-    
-    .modal-label {
-      font-size: 11px;
-      color: var(--text-secondary);
-      margin-top: 8px;
-      margin-bottom: 3px;
-      display: block;
-    }
-    
-    .modal-input {
-      width: 100%;
-      padding: 6px 8px;
-      border: 0.5px solid var(--border-primary);
-      border-radius: 4px;
-      font-size: 12px;
-    }
-    
-    .modal-buttons {
-      display: flex;
-      gap: 6px;
-      justify-content: flex-end;
-      margin-top: 12px;
-    }
-    
-    .toast {
-      position: fixed;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--bg-primary);
-      border: 0.5px solid var(--border-primary);
-      border-radius: 6px;
-      padding: 8px 16px;
-      font-size: 12px;
-      z-index: 200;
-      opacity: 0;
-      transition: opacity 0.2s;
-      pointer-events: none;
-    }
-    
-    .toast.show { opacity: 1; }
-    
-    .admin-badge {
-      background: var(--bg-danger);
-      color: var(--text-danger);
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-    
-    .my-badge {
-      background: var(--bg-success);
-      color: var(--text-success);
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    
-    .queue-item {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 7px;
-      border: 0.5px solid var(--border-primary);
-      border-radius: 4px;
-      font-size: 11px;
-    }
-    
-    .queue-item.active {
-      background: var(--bg-info);
-      border-color: var(--text-info);
-    }
-    
-    .queue-num {
-      padding: 2px 5px;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 10px;
-      min-width: 25px;
-      text-align: center;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <!-- Header -->
-    <div class="header">
-      <button class="btn" onclick="toggleSidebar()">≡</button>
-      <div class="header-title">🏢 강의실 예약</div>
-      <div class="banner" id="banner">로딩 중...</div>
-      <div class="badge" id="badge">잠김</div>
-      <button class="btn" id="adminBtn" onclick="showAdminLogin()">관리자</button>
-    </div>
-    
-    <!-- Notice -->
-    <div class="notice" id="notice" style="display: none;">
-      <span>📢</span>
-      <span id="noticeText"></span>
-    </div>
-    
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- Sidebar -->
-      <div class="sidebar" id="sidebar">
-        <div id="sidebarContent"></div>
-      </div>
-      
-      <!-- Main -->
-      <div class="main">
-        <!-- Week Navigation -->
-        <div class="week-header">
-          <button class="btn" onclick="changeWeek(-1)">◀</button>
-          <span id="weekLabel" style="min-width: 80px; text-align: center;"></span>
-          <button class="btn" onclick="changeWeek(1)">▶</button>
-          <span style="flex: 1;"></span>
-          <label style="font-size: 10px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-            <input type="checkbox" id="testMode" onchange="toggleTestMode()">
-            테스트
-          </label>
-        </div>
-        
-        <!-- Legend -->
-        <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
-            <span>빈 칸</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 12px; height: 12px; background: #c8c2ff; border-radius: 2px;"></div>
-            <span>선택 중</span>
-          </div>
-        </div>
-        
-        <!-- Table -->
-        <div class="table-wrapper">
-          <table id="table"></table>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Footer -->
-    <div class="footer" id="footer" style="display: none;">
-      <div id="footerText" style="flex: 1; font-size: 12px;"></div>
-      <button class="btn" onclick="clearSelection()">취소</button>
-      <button class="btn btn-primary" id="submitBtn" onclick="submitBooking()" disabled>완료</button>
-    </div>
-  </div>
-  
-    <div class="modal" id="adminModal">
-    <div class="modal-content">
-      <div class="modal-title">🛡️ 관리자 로그인</div>
-      <label class="modal-label">비밀번호</label>
-      <input type="password" class="modal-input" id="adminPassword" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doAdminLogin()">
-      <div class="modal-buttons">
-        <button class="btn" onclick="closeModal('adminModal')">취소</button>
-        <button class="btn btn-primary" onclick="doAdminLogin()">로그인</button>
-      </div>
-    </div>
-  </div>
-  
-  <div class="modal" id="bookingModal">
-    <div class="modal-content">
-      <div class="modal-title" id="bookingTitle">자율 예약</div>
-      <div style="font-size: 13px; font-weight: 500; margin-bottom: 8px;" id="bookingRoom"></div>
-      <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="bookingTime"></div>
-      <label class="modal-label">예약자명</label>
-      <input type="text" class="modal-input" id="bookingName" placeholder="성함 입력" maxlength="14">
-      <label class="modal-label">메모 (선택)</label>
-      <input type="text" class="modal-input" id="bookingMemo" placeholder="예: 일반화학 실험">
-      <div class="modal-buttons">
-        <button class="btn" onclick="closeModal('bookingModal')">취소</button>
-        <button class="btn btn-primary" onclick="saveBooking()">예약</button>
-      </div>
-    </div>
-  </div>
-  
-  <div class="modal" id="adminBookModal">
-    <div class="modal-content">
-      <div class="modal-title">강제 예약</div>
-      <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="adminBookInfo"></div>
-      <label class="modal-label">예약자명</label>
-      <input type="text" class="modal-input" id="adminBookName" placeholder="">
-      <label class="modal-label">메모</label>
-      <input type="text" class="modal-input" id="adminBookMemo" placeholder="">
-      <div class="modal-buttons">
-        <button class="btn" onclick="closeModal('adminBookModal')">취소</button>
-        <button class="btn btn-danger" id="deleteBtn" style="display: none;" onclick="deleteAdminBooking()">삭제</button>
-        <button class="btn btn-primary" onclick="saveAdminBooking()">등록</button>
-      </div>
-    </div>
-  </div>
-  
-  <div class="modal" id="adminSettingModal">
-    <div class="modal-content">
-      <div class="modal-title">🔐 관리자 설정</div>
-      <label class="modal-label">새 비밀번호</label>
-      <input type="password" class="modal-input" id="newPassword" placeholder="새 비밀번호 입력">
-      <label class="modal-label">비밀번호 확인</label>
-      <input type="password" class="modal-input" id="confirmPassword" placeholder="비밀번호 다시 입력" onkeydown="if(event.key==='Enter')saveAdminPassword()">
-      <div style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">최소 4자 이상 입력하세요</div>
-      <div class="modal-buttons">
-        <button class="btn" onclick="closeModal('adminSettingModal')">취소</button>
-        <button class="btn btn-primary" onclick="saveAdminPassword()">변경</button>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Toast -->
-  <div class="toast" id="toast"></div>
-  
-  <script>
+<script>
     // Constants
     const ROOMS = ['120호', '128호', '129호', '219호', '229호'];
     const SLOTS = Array.from({length: 15}, (_, i) => `${String(i+9).padStart(2, '0')}:00`);
@@ -578,7 +74,15 @@
     const slotKey = (date, roomIdx, timeIdx) => `${date}_${roomIdx}_${timeIdx}`;
     
     // Color picker
-    const getColor = (num) => COLORS[(num - 1) % COLORS.length];
+    const getColor = (name) => {
+      // 이름 문자열을 기반으로 고유 해시값을 만들어 항상 동일한 색상 지정
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const index = Math.abs(hash) % COLORS.length;
+      return COLORS[index];
+    };
     
     // Save state to localStorage
     function saveState() {
@@ -715,8 +219,7 @@
       if (!name) { showToast('예약자명을 입력해 주세요'); return; }
       
       const memo = document.getElementById('bookingMemo').value.trim();
-      const colorIdx = Object.keys(state.bookings).length % COLORS.length;
-      state.bookings[pendingBooking.key] = {name, memo, num: null, colorIdx};
+      state.bookings[pendingBooking.key] = {name, memo, num: null};
       closeModal('bookingModal');
       pendingBooking = null;
       saveState();
@@ -729,8 +232,7 @@
       if (!pendingAdminBooking) return;
       const name = document.getElementById('adminBookName').value.trim() || '관리자';
       const memo = document.getElementById('adminBookMemo').value.trim();
-      const colorIdx = 7; // 마지막 색상
-      state.bookings[pendingAdminBooking.key] = {name, memo, num: 'admin', colorIdx};
+      state.bookings[pendingAdminBooking.key] = {name, memo, num: 'admin'};
       closeModal('adminBookModal');
       pendingAdminBooking = null;
       saveState();
@@ -753,9 +255,8 @@
     function submitBooking() {
       if (selectedSlots.size === 0) { showToast('선택한 슬롯이 없습니다'); return; }
       
-      const colorIdx = (myNum - 1) % COLORS.length;
       selectedSlots.forEach(key => {
-        state.bookings[key] = {name: myName, memo: '', num: myNum, colorIdx};
+        state.bookings[key] = {name: myName, memo: '', num: myNum};
       });
       
       selectedSlots.clear();
@@ -780,15 +281,15 @@
       render();
     }
 
-function postNotice() {
-  const input = document.getElementById('noticeInput');
-  if (!input) return;
-  
-  state.notice = input.value.trim();
-  saveState();
-  render();
-  showToast('✓ 공지사항이 게시되었습니다');
-}
+    function postNotice() {
+      const input = document.getElementById('noticeInput');
+      if (!input) return;
+      
+      state.notice = input.value.trim();
+      saveState();
+      render();
+      showToast('✓ 공지사항이 게시되었습니다');
+    }
     
     // UI Functions
     function toggleSidebar() {
@@ -831,7 +332,8 @@ function postNotice() {
         if (state.currentTurn) {
           const qItem = state.queue.find(q => q.num === state.currentTurn);
           const isMe = state.currentTurn === myNum;
-          banner.innerHTML = `<span style="background: ${getColor(state.currentTurn).bg}; color: ${getColor(state.currentTurn).tc}; padding: 1px 5px; border-radius: 3px; font-weight: 500;">${state.currentTurn}번 ${qItem?.name || ''}</span>님 입력 중${isMe ? ' — <strong>내 차례!</strong>' : ''}`;
+          const currentTurnColor = getColor(qItem?.name || '기본');
+          banner.innerHTML = `<span style="background: ${currentTurnColor.bg}; color: ${currentTurnColor.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 500;">${state.currentTurn}번 ${qItem?.name || ''}</span>님 입력 중${isMe ? ' — <strong>내 차례!</strong>' : ''}`;
           banner.style.background = isMe ? '#e8f5e9' : '#e3f2fd';
         } else {
           banner.textContent = '대기자 없음';
@@ -868,7 +370,7 @@ function postNotice() {
       } else {
         if (mode === 'queue') {
           if (myNum !== null) {
-            const color = getColor(myNum);
+            const color = getColor(myName);
             sidebar.innerHTML = `
               <div class="my-badge">
                 <span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 10px;">${myNum}번</span>
@@ -963,12 +465,10 @@ function postNotice() {
             let style = topBorder;
             let cellContent = '';
             
-           if (booking) {
-              // 이름(booking.name)을 기반으로 언제나 동일한 색상을 뽑아오도록 수정
+            if (booking) {
               const color = getColor(booking.name);
               style += `background: ${color.bg}; color: ${color.tc};`;
               cellContent = booking.name;
-            }
             } else if (isSelected) {
               style += 'background: #c8c2ff; color: #4a3f8f;';
               cellContent = '✓';
@@ -992,7 +492,7 @@ function postNotice() {
         footer.style.display = 'flex';
         const count = selectedSlots.size;
         document.getElementById('footerText').innerHTML = isMyTurn
-          ? (count === 0 ? `<strong>${myName}</strong>님, 빈 칸을 클릭해 선택하세요` : `<strong style="color: var(--text-success);">${count}개</strong> 선택됨`)
+          ? (count === 0 ? `<strong>${myName}</strong>님, 빈 칸을 클릭해 선택하세요` : `<strong style=\"color: var(--text-success);\">${count}개</strong> 선택됨`)
           : `${count}개 슬롯 선택됨`;
         document.getElementById('submitBtn').disabled = count === 0;
       } else {
@@ -1028,14 +528,23 @@ function postNotice() {
     }
     
     // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      render();
+      
+      // 1초마다 카운트다운 타이머 갱신을 위해 상단 바 리렌더링
+      setInterval(() => {
+        if (getMode() === 'locked') {
+          render();
+        }
+      }, 1000);
+    });
+    
     window.addEventListener('click', (e) => {
       if (e.target.classList.contains('modal')) {
         e.target.classList.remove('active');
       }
     });
-    
-    loadState();
-    render();
   </script>
 </body>
 </html>
