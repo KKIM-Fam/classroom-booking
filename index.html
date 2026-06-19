@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>강의실 예약 시스템</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css">
   <style>
     * {
       box-sizing: border-box;
@@ -84,29 +85,30 @@
     .badge-queue { background: var(--bg-warning); color: var(--text-warning); }
     .badge-free { background: var(--bg-success); color: var(--text-success); }
     
-    /* 공지사항 섹션 수정: 한 항목당 무조건 한 줄씩 보이도록 세로 배치 구조로 개선 */
+    /* 📢 공지사항 섹션 스타일: 여러 개 등록 시 세로로 한 줄씩 정렬되도록 전면 수정 */
     .notice-section {
-      max-height: 150px;
+      max-height: 160px;
       overflow-y: auto;
       background: var(--bg-warning);
       color: var(--text-warning);
       font-size: 12px;
       border-bottom: 0.5px solid var(--border-primary);
-      padding: 8px;
+      padding: 6px 10px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 5px;
     }
     
     .notice-item {
-      background: rgba(255,255,255,0.4);
-      padding: 6px 8px;
-      border-radius: 3px;
+      background: rgba(255,255,255,0.5);
+      padding: 6px 10px;
+      border-radius: 4px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       width: 100%;
+      border: 0.5px solid rgba(245, 124, 0, 0.2);
     }
     
     .notice-text {
@@ -115,17 +117,23 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-weight: 500;
     }
     
     .notice-item button {
       padding: 2px 6px;
-      font-size: 10px;
-      background: rgba(0,0,0,0.05);
-      border: 0.5px solid var(--text-warning);
-      color: var(--text-warning);
-      border-radius: 2px;
+      font-size: 11px;
+      background: rgba(211, 47, 47, 0.1);
+      border: 0.5px solid var(--text-danger);
+      color: var(--text-danger);
+      border-radius: 3px;
       cursor: pointer;
       flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    
+    .notice-item button:hover {
+      background: rgba(211, 47, 47, 0.2);
     }
     
     .main-content {
@@ -432,7 +440,7 @@
         
         <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
           <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
+            <div style="width: 12px; height: 12px; background: var(--bg-primary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
             <span>빈 칸</span>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
@@ -527,7 +535,7 @@
       {bg: '#F4C0D1', tc: '#72243E'}, {bg: '#D3D1C7', tc: '#2C2C2A'},
     ];
     
-    // State
+    // State 안정화 기법 (만약 LocalStorage 내 notices가 빈 문자열이거나 잘못되어있으면 자동 보정)
     let state = {
       queue: [],
       nextNum: 1,
@@ -611,468 +619,23 @@
       localStorage.setItem('myName', JSON.stringify(myName));
     }
     
-    // Load state from localStorage
+    // Load state from localStorage 및 안전 필터링
     function loadState() {
       const saved = localStorage.getItem('classroomBooking');
-      if (saved) state = JSON.parse(saved);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            state = parsed;
+            // 중요: notices가 배열이 아니거나 비어 있으면 배열로 보정
+            if (!Array.isArray(state.notices)) {
+              state.notices = [];
+            }
+          }
+        } catch (e) {
+          console.error("로컬스토리지 파싱 에러 복구 진행");
+        }
+      }
       
       const savedMyNum = localStorage.getItem('myNum');
-      if (savedMyNum) myNum = JSON.parse(savedMyNum);
-      
-      const savedMyName = localStorage.getItem('myName');
-      if (savedMyName) myName = JSON.parse(savedMyName);
-    }
-    
-    // Toast notification
-    function showToast(msg, duration = 2500) {
-      const toast = document.getElementById('toast');
-      toast.textContent = msg;
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), duration);
-    }
-    
-    // Modal management
-    function openModal(id) { document.getElementById(id).classList.add('active'); }
-    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-    
-    // Admin login
-    function showAdminLogin() {
-      if (isAdmin) {
-        isAdmin = false;
-        document.getElementById('adminBtn').textContent = '관리자';
-        render();
-        return;
-      }
-      openModal('adminModal');
-      setTimeout(() => document.getElementById('adminPassword').focus(), 100);
-    }
-    
-    function doAdminLogin() {
-      if (document.getElementById('adminPassword').value === state.adminPassword) {
-        isAdmin = true;
-        closeModal('adminModal');
-        document.getElementById('adminBtn').textContent = '관리자✓';
-        showToast('✓ 관리자 모드 활성화');
-        render();
-      } else {
-        showToast('비밀번호가 틀렸습니다');
-      }
-    }
-    
-    function saveAdminPassword() {
-      const newPw = document.getElementById('newPassword').value.trim();
-      const confirmPw = document.getElementById('confirmPassword').value.trim();
-      
-      if (!newPw || !confirmPw) {
-        showToast('비밀번호를 입력해 주세요');
-        return;
-      }
-      
-      if (newPw.length < 4) {
-        showToast('비밀번호는 최소 4자 이상이어야 합니다');
-        return;
-      }
-      
-      if (newPw !== confirmPw) {
-        showToast('비밀번호가 일치하지 않습니다');
-        return;
-      }
-      
-      state.adminPassword = newPw;
-      saveState();
-      closeModal('adminSettingModal');
-      document.getElementById('newPassword').value = '';
-      document.getElementById('confirmPassword').value = '';
-      showToast('✓ 비밀번호가 변경되었습니다');
-    }
-    
-    // Queue management
-    function joinQueue() {
-      const name = document.getElementById('queueInput')?.value?.trim();
-      if (!name) { showToast('성함을 입력해 주세요'); return; }
-      if (myNum !== null) { showToast('이미 순번을 받으셨습니다'); return; }
-      
-      const num = state.nextNum++;
-      state.queue.push({num, name, done: false});
-      myNum = num;
-      myName = name;
-      
-      if (state.currentTurn === null) state.currentTurn = num;
-      
-      document.getElementById('queueInput').value = '';
-      saveState();
-      render();
-      showToast(`✓ ${num}번 순번이 부여되었습니다`);
-    }
-    
-    // Slot click
-    function clickSlot(weekIdx, roomIdx, timeIdx) {
-      const dates = getWeekDates(weekOffset);
-      const date = formatDate(dates[weekIdx]);
-      const key = slotKey(date, roomIdx, timeIdx);
-      const mode = getMode();
-      
-      if (isAdmin) {
-        pendingAdminBooking = {date, roomIdx, timeIdx, key};
-        const d = dates[weekIdx];
-        document.getElementById('adminBookInfo').textContent = 
-          `${ROOMS[roomIdx]} — ${d.getMonth()+1}/${d.getDate()} ${SLOTS[timeIdx]}${state.bookings[key] ? ` | 현재: ${state.bookings[key].name}` : ''}`;
-        document.getElementById('adminBookName').value = state.bookings[key]?.name || '';
-        document.getElementById('adminBookMemo').value = state.bookings[key]?.memo || '';
-        document.getElementById('deleteBtn').style.display = state.bookings[key] ? '' : 'none';
-        openModal('adminBookModal');
-        return;
-      }
-      
-      if (mode === 'locked') {
-        showToast('월요일 오전 9시에 예약이 시작됩니다');
-        return;
-      }
-      
-      if (mode === 'queue') {
-        if (myNum === null) { showToast('순번을 먼저 받아 주세요'); return; }
-        if (state.currentTurn !== myNum) {
-          const qItem = state.queue.find(q => q.num === state.currentTurn);
-          showToast(`현재 ${state.currentTurn}번 ${qItem?.name || ''}님이 입력 중입니다`);
-          return;
-        }
-        if (state.bookings[key]) { showToast('이미 예약된 슬롯입니다'); return; }
-        
-        selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
-        render();
-        return;
-      }
-      
-      if (state.bookings[key]) {
-        const b = state.bookings[key];
-        showToast(`${b.name}${b.memo ? ' · ' + b.memo : ''}`);
-        return;
-      }
-      
-      pendingBooking = {date, roomIdx, timeIdx, key};
-      const d = dates[weekIdx];
-      document.getElementById('bookingRoom').textContent = ROOMS[roomIdx];
-      document.getElementById('bookingTime').textContent = `${d.getMonth()+1}/${d.getDate()} (${DAYS[d.getDay()]}) ${SLOTS[timeIdx]}`;
-      document.getElementById('bookingName').value = '';
-      document.getElementById('bookingMemo').value = '';
-      openModal('bookingModal');
-      setTimeout(() => document.getElementById('bookingName').focus(), 100);
-    }
-    
-    // Save booking
-    function saveBooking() {
-      if (!pendingBooking) return;
-      const name = document.getElementById('bookingName').value.trim();
-      if (!name) { showToast('예약자명을 입력해 주세요'); return; }
-      
-      const memo = document.getElementById('bookingMemo').value.trim();
-      const color = getColorByName(name);
-      state.bookings[pendingBooking.key] = {name, memo, num: null};
-      closeModal('bookingModal');
-      pendingBooking = null;
-      saveState();
-      render();
-      showToast('✓ 예약 완료');
-    }
-    
-    // Admin booking
-    function saveAdminBooking() {
-      if (!pendingAdminBooking) return;
-      const name = document.getElementById('adminBookName').value.trim() || '관리자';
-      const memo = document.getElementById('adminBookMemo').value.trim();
-      getColorByName(name);
-      state.bookings[pendingAdminBooking.key] = {name, memo, num: 'admin'};
-      closeModal('adminBookModal');
-      pendingAdminBooking = null;
-      saveState();
-      render();
-      showToast('✓ 강제 예약 완료');
-    }
-    
-    function deleteAdminBooking() {
-      if (pendingAdminBooking && state.bookings[pendingAdminBooking.key]) {
-        delete state.bookings[pendingAdminBooking.key];
-        closeModal('adminBookModal');
-        pendingAdminBooking = null;
-        saveState();
-        render();
-        showToast('예약 삭제됨');
-      }
-    }
-    
-    // Submit booking
-    function submitBooking() {
-      if (selectedSlots.size === 0) { showToast('선택한 슬롯이 없습니다'); return; }
-      
-      const color = getColorByName(myName);
-      selectedSlots.forEach(key => {
-        state.bookings[key] = {name: myName, memo: '', num: myNum};
-      });
-      
-      selectedSlots.clear();
-      const me = state.queue.find(q => q.num === myNum);
-      if (me) me.done = true;
-      
-      const next = state.queue.find(q => !q.done && q.num !== myNum);
-      state.currentTurn = next ? next.num : null;
-      
-      const n = myName;
-      myNum = null;
-      myName = '';
-      
-      saveState();
-      render();
-      showToast(`✓ ${n}님 예약 완료! 다음 순번으로 이양`);
-    }
-    
-    // Clear selection
-    function clearSelection() {
-      selectedSlots.clear();
-      render();
-    }
-    
-    // Notice management
-    function postNotice() {
-      const notice = document.getElementById('noticeInput').value.trim();
-      if (!notice) { showToast('공지 내용을 입력해 주세요'); return; }
-      state.notices.push({id: Date.now(), text: notice});
-      document.getElementById('noticeInput').value = '';
-      saveState();
-      render();
-      showToast('✓ 공지 게시됨');
-    }
-    
-    function deleteNotice(id) {
-      state.notices = state.notices.filter(n => n.id !== id);
-      saveState();
-      render();
-      showToast('공지 삭제됨');
-    }
-    
-    // UI Functions
-    function toggleSidebar() {
-      sidebarOpen = !sidebarOpen;
-      document.getElementById('sidebar').classList.toggle('sidebar-hidden', !sidebarOpen);
-    }
-    
-    function changeWeek(d) {
-      weekOffset += d;
-      render();
-    }
-    
-    function toggleTestMode() {
-      testMode = document.getElementById('testMode').checked;
-      render();
-    }
-    
-    // Render
-    function render() {
-      const dates = getWeekDates(weekOffset);
-      const mode = getMode();
-      
-      // Banner
-      const banner = document.getElementById('banner');
-      const badge = document.getElementById('badge');
-      
-      if (mode === 'locked') {
-        badge.className = 'badge badge-locked';
-        badge.textContent = '🔒 잠김';
-        const now = new Date();
-        const unlock = new Date(now);
-        if (now.getDay() !== 1) {
-          unlock.setDate(now.getDate() + (8 - now.getDay()) % 7);
-        }
-        unlock.setHours(9, 0, 0, 0);
-        banner.textContent = `⏰ 월요일 9시 오픈까지 ${formatCountdown(unlock - now)}`;
-      } else if (mode === 'queue') {
-        badge.className = 'badge badge-queue';
-        badge.textContent = '📋 순번제 09-10시';
-        if (state.currentTurn) {
-          const qItem = state.queue.find(q => q.num === state.currentTurn);
-          const isMe = state.currentTurn === myNum;
-          const color = getColorByName(qItem?.name || '');
-          banner.innerHTML = `<span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 500;">${state.currentTurn}번 ${qItem?.name || ''}</span>님 입력 중${isMe ? ' — <strong>내 차례!</strong>' : ''}`;
-          banner.style.background = isMe ? '#e8f5e9' : '#e3f2fd';
-        } else {
-          banner.textContent = '대기자 없음';
-        }
-      } else {
-        badge.className = 'badge badge-free';
-        badge.textContent = '🔓 자율예약';
-        banner.textContent = '자율 예약 기간입니다';
-      }
-      
-      // Notice 수정: 렌더링 시 innerHTML을 명확히 한 줄(Item) 단위 배열로 생성하여 깔끔하게 세로 배치
-      const noticeSection = document.getElementById('noticeSection');
-      if (state.notices.length > 0) {
-        noticeSection.style.display = 'flex';
-        noticeSection.innerHTML = state.notices.map(n => `
-          <div class="notice-item">
-            <div class="notice-text">📢 ${n.text}</div>
-            ${isAdmin ? `<button onclick="deleteNotice(${n.id})">×</button>` : ''}
-          </div>
-        `).join('');
-      } else {
-        noticeSection.style.display = 'none';
-        noticeSection.innerHTML = '';
-      }
-      
-      // Week label
-      document.getElementById('weekLabel').textContent = 
-        `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
-      
-      // Sidebar
-      const sidebar = document.getElementById('sidebarContent');
-      if (isAdmin) {
-        sidebar.innerHTML = `
-          <div class="admin-badge">🛡️ 관리자 모드</div>
-          <div class="sidebar-section" style="margin-top: 12px;">📢 공지사항</div>
-          <textarea id="noticeInput" style="width: 100%; padding: 6px; border: 0.5px solid var(--border-primary); border-radius: 4px; resize: vertical; min-height: 60px; font-size: 11px;" placeholder="공지 내용 입력"></textarea>
-          <button class="btn btn-primary" style="width: 100%; margin-top: 4px;" onclick="postNotice()">게시</button>
-          <button class="btn" style="width: 100%; margin-top: 8px; font-size: 11px;" onclick="openModal('adminSettingModal')">🔐 비밀번호 변경</button>
-        `;
-      } else {
-        if (mode === 'queue') {
-          if (myNum !== null) {
-            const color = getColorByName(myName);
-            sidebar.innerHTML = `
-              <div class="my-badge">
-                <span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 10px;">${myNum}번</span>
-                <strong>${myName}</strong>님 대기
-              </div>
-            `;
-          } else {
-            sidebar.innerHTML = `
-              <div class="sidebar-section">🎫 순번 등록</div>
-              <div class="input-group">
-                <input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()">
-                <button class="btn" onclick="joinQueue()">+</button>
-              </div>
-            `;
-          }
-        } else if (mode === 'locked') {
-          sidebar.innerHTML = `
-            <div class="sidebar-section">🎫 사전 순번 등록</div>
-            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">월요일 9시 전에 순번을 받아 두세요.</p>
-            <div class="input-group" style="margin-top: 8px;">
-              <input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()">
-              <button class="btn" onclick="joinQueue()">+</button>
-            </div>
-          `;
-        } else {
-          sidebar.innerHTML = `
-            <div class="sidebar-section">📅 자율 예약</div>
-            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">빈 칸을 눌러 예약하세요.</p>
-          `;
-        }
-        
-        if ((mode === 'queue' || mode === 'locked') && state.queue.length > 0) {
-          const queueHtml = state.queue.map(q => {
-            const color = getColorByName(q.name);
-            const isActive = q.num === state.currentTurn && !q.done;
-            return `
-              <div class="queue-item${isActive ? ' active' : ''}${q.done ? ' done' : ''}">
-                <span class="queue-num" style="background: ${color.bg}; color: ${color.tc};">${q.num}</span>
-                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${q.name}</span>
-                <span style="font-size: 10px; color: var(--text-secondary);">${q.done ? '완료' : isActive ? '입력' : '대기'}</span>
-              </div>
-            `;
-          }).join('');
-          
-          const queueDiv = document.createElement('div');
-          queueDiv.innerHTML = `
-            <div class="sidebar-section" style="margin-top: 10px;">📋 대기 목록</div>
-            <div style="display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto;">
-              ${queueHtml}
-            </div>
-          `;
-          sidebar.appendChild(queueDiv);
-        }
-      }
-      
-      // Build table
-      let tableHtml = '<thead><tr><th style="width: 50px;">시간</th>';
-      
-      dates.forEach((d, i) => {
-        const isToday = formatDate(d) === formatDate(new Date());
-        const isMon = d.getDay() === 1;
-        const style = isToday ? 'background: var(--bg-info); color: var(--text-info);' : '';
-        const bottom = isMon && !testMode ? 'border-bottom: 2px solid var(--text-warning);' : '';
-        
-        tableHtml += `<th colspan="5" style="${style}${bottom}; padding: 4px 2px; font-size: 10px;">
-          ${d.getMonth()+1}/${d.getDate()}<br>${DAYS[d.getDay()]}${isMon ? '<br><span style="font-size: 8px; opacity: 0.6;">순번→자율</span>' : ''}
-        </th>`;
-      });
-      
-      tableHtml += '</tr><tr>';
-      dates.forEach(() => {
-        ROOMS.forEach(r => {
-          tableHtml += `<th style="font-size: 8px;">${r.substring(0, 3)}</th>`;
-        });
-      });
-      tableHtml += '</tr></thead><tbody>';
-      
-      SLOTS.forEach((slot, si) => {
-        const isQueueHour = si === 0;
-        tableHtml += `<tr><td class="time-label" style="${isQueueHour ? 'border-right: 2px solid var(--text-warning);' : ''}">${slot}</td>`;
-        
-        dates.forEach((d, di) => {
-          const date = formatDate(d);
-          const isMon = d.getDay() === 1;
-          
-          ROOMS.forEach((_, ri) => {
-            const key = slotKey(date, ri, si);
-            const booking = state.bookings[key];
-            const isSelected = selectedSlots.has(key);
-            const topBorder = isMon && si === 0 && !testMode ? 'border-top: 1.5px solid #FAC775;' : '';
-            
-            let style = topBorder;
-            let cellContent = '';
-            
-            if (booking) {
-              const color = getColorByName(booking.name);
-              style += `background: ${color.bg}; color: ${color.tc};`;
-              cellContent = booking.name;
-            } else if (isSelected) {
-              style += 'background: #c8c2ff; color: #4a3f8f;';
-              cellContent = '✓';
-            }
-            
-            tableHtml += `<td class="${booking ? 'booked' : 'empty'}" style="${style}" onclick="clickSlot(${di}, ${ri}, ${si})" title="${booking ? booking.name + (booking.memo ? ' · ' + booking.memo : '') : ''}">${cellContent}</td>`;
-          });
-        });
-        
-        tableHtml += '</tr>';
-      });
-      
-      tableHtml += '</tbody>';
-      document.getElementById('table').innerHTML = tableHtml;
-      
-      // Footer
-      const footer = document.getElementById('footer');
-      const isMyTurn = myNum !== null && myNum === state.currentTurn && mode === 'queue';
-      
-      if (isMyTurn || selectedSlots.size > 0) {
-        footer.style.display = 'flex';
-        const count = selectedSlots.size;
-        document.getElementById('footerText').innerHTML = isMyTurn
-          ? (count === 0 ? `<strong>${myName}</strong>님, 빈 칸을 클릭해 선택하세요` : `<strong style="color: var(--text-success);">${count}개</strong> 선택됨`)
-          : `${count}개 슬롯 선택됨`;
-        document.getElementById('submitBtn').disabled = count === 0;
-      } else {
-        footer.style.display = 'none';
-      }
-    }
-    
-    // Initialize
-    window.addEventListener('click', (e) => {
-      if (e.target.classList.contains('modal')) {
-        e.target.classList.remove('active');
-      }
-    });
-    
-    loadState();
-    render();
-  </script>
-</body>
-</html>
+      if (savedMyNum) { try { myNum = JSON.parse(savedMyNum);
