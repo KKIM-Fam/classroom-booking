@@ -396,7 +396,6 @@
 </head>
 <body>
   <div class="container">
-    <!-- Header -->
     <div class="header">
       <button class="btn" onclick="toggleSidebar()">≡</button>
       <div class="header-title">🏢 강의실 예약</div>
@@ -405,21 +404,16 @@
       <button class="btn" id="adminBtn" onclick="showAdminLogin()">관리자</button>
     </div>
     
-    <!-- Notice -->
     <div class="notice-section" id="noticeSection" style="display: none;">
       <div id="noticeList"></div>
     </div>
     
-    <!-- Main Content -->
     <div class="main-content">
-      <!-- Sidebar -->
       <div class="sidebar" id="sidebar">
         <div id="sidebarContent"></div>
       </div>
       
-      <!-- Main -->
       <div class="main">
-        <!-- Week Navigation -->
         <div class="week-header">
           <button class="btn" onclick="changeWeek(-1)">◀</button>
           <span id="weekLabel" style="min-width: 80px; text-align: center;"></span>
@@ -431,7 +425,6 @@
           </label>
         </div>
         
-        <!-- Legend -->
         <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
           <div style="display: flex; align-items: center; gap: 4px;">
             <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
@@ -443,14 +436,12 @@
           </div>
         </div>
         
-        <!-- Table -->
         <div class="table-wrapper">
           <table id="table"></table>
         </div>
       </div>
     </div>
     
-    <!-- Footer -->
     <div class="footer" id="footer" style="display: none;">
       <div id="footerText" style="flex: 1; font-size: 12px;"></div>
       <button class="btn" onclick="clearSelection()">취소</button>
@@ -458,7 +449,6 @@
     </div>
   </div>
   
-  <!-- Modals -->
   <div class="modal" id="adminModal">
     <div class="modal-content">
       <div class="modal-title">🛡️ 관리자 로그인</div>
@@ -518,7 +508,6 @@
     </div>
   </div>
   
-  <!-- Toast -->
   <div class="toast" id="toast"></div>
   
   <script>
@@ -1017,10 +1006,11 @@
       });
       tableHtml += '</tr></thead><tbody>';
       
-SLOTS.forEach((slot, si) => {
+      SLOTS.forEach((slot, si) => {
         const isQueueHour = si === 0;
         tableHtml += `<tr><td class="time-label" style="${isQueueHour ? 'border-right: 2px solid var(--text-warning);' : ''}">${slot}</td>`;
         
+        // [수정 완료] 테이블 셀 출력 순서 고정 (날짜 -> 호실 순서)
         dates.forEach((d, di) => {
           const date = formatDate(d);
           const isMon = d.getDay() === 1;
@@ -1043,6 +1033,7 @@ SLOTS.forEach((slot, si) => {
               cellContent = '✓';
             }
             
+            // [수정 완료] 클릭 함수로 인자를 넘길 때도 (di, ri, si) 형태로 순서 일치시킴
             tableHtml += `<td class="${booking ? 'booked' : 'empty'}" style="${style}" onclick="clickSlot(${di}, ${ri}, ${si})" title="${booking ? booking.name + (booking.memo ? ' · ' + booking.memo : '') : ''}">${cellContent}</td>`;
           });
         });
