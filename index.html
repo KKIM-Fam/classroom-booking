@@ -902,7 +902,7 @@ function postNotice() {
         
         if ((mode === 'queue' || mode === 'locked') && state.queue.length > 0) {
           const queueHtml = state.queue.map(q => {
-            const color = getColor(q.num);
+            const color = getColor(q.name);
             const isActive = q.num === state.currentTurn && !q.done;
             return `
               <div class="queue-item${isActive ? ' active' : ''}${q.done ? ' done' : ''}">
@@ -963,11 +963,12 @@ function postNotice() {
             let style = topBorder;
             let cellContent = '';
             
-            if (booking) {
-              const colorIdx = booking.colorIdx !== undefined ? booking.colorIdx : (booking.num - 1) % COLORS.length;
-              const color = COLORS[colorIdx];
+           if (booking) {
+              // 이름(booking.name)을 기반으로 언제나 동일한 색상을 뽑아오도록 수정
+              const color = getColor(booking.name);
               style += `background: ${color.bg}; color: ${color.tc};`;
               cellContent = booking.name;
+            }
             } else if (isSelected) {
               style += 'background: #c8c2ff; color: #4a3f8f;';
               cellContent = '✓';
