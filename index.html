@@ -779,6 +779,16 @@
       selectedSlots.clear();
       render();
     }
+
+function postNotice() {
+  const input = document.getElementById('noticeInput');
+  if (!input) return;
+  
+  state.notice = input.value.trim();
+  saveState();
+  render();
+  showToast('✓ 공지사항이 게시되었습니다');
+}
     
     // UI Functions
     function toggleSidebar() {
