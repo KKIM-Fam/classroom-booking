@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>강의실 예약 시스템</title>
+  <title>강의실 예약 시스템 (Supabase)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -60,7 +61,6 @@
     td.time-label { background: var(--bg-secondary); color: var(--text-secondary); cursor: default; padding: 0 4px; font-weight: 600; font-size: 10px; width: 50px; }
     td.empty { background: var(--bg-primary); }
     td.booked { font-size: 9px; font-weight: 600; cursor: default; display: flex; align-items: center; justify-content: center; padding: 2px; line-height: 1.2; position: relative; }
-    td.booked:hover::after { content: '✕'; position: absolute; top: -8px; right: -8px; background: var(--text-danger); color: white; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; z-index: 10; }
     td.selected { background: #c8c2ff; color: #4a3f8f; font-weight: 600; }
     .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); }
     .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: none; align-items: flex-start; justify-content: center; z-index: 100; padding-top: 80px; overflow-y: auto; }
@@ -78,13 +78,12 @@
     .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
     .queue-num { padding: 2px 5px; border-radius: 3px; font-weight: 600; font-size: 10px; min-width: 25px; text-align: center; }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <button class="btn" onclick="toggleSidebar()">≡</button>
-      <div class="header-title">🏢 강의실 예약</div>
+      <div class="header-title">🏢 강의실 예약 (클라우드)</div>
       <div class="banner" id="banner">로딩 중...</div>
       <div class="badge" id="badge">잠김</div>
       <button class="btn" id="adminBtn" onclick="showAdminLogin()">관리자</button>
@@ -112,7 +111,7 @@
         
         <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
           <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
+            <div style="width: 12px; height: 12px; background: var(--bg-primary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
             <span>빈 칸</span>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
@@ -164,7 +163,7 @@
   
   <div class="modal" id="adminBookModal">
     <div class="modal-content">
-      <div class="modal-title">강제 예약</div>
+      <div class="modal-title">강제 예약 및 제어</div>
       <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="adminBookInfo"></div>
       <label class="modal-label">예약자명</label>
       <input type="text" class="modal-input" id="adminBookName" placeholder="">
@@ -196,9 +195,9 @@
   <div class="toast" id="toast"></div>
   
   <script>
-    // [추가] Supabase 접속 계정 정보 연동
+    // 2. Supabase 설정 연동
     const SUPABASE_URL = 'https://kdfxydjvexrndqgnmdqz.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_TFXKV2y0oFermMLgv49fdA_cuSrT6TJ'; 
+    const SUPABASE_KEY = 'sb_publishable_TFXKV2y0oFermMLgv49fdA_cuSrT6TJ';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const ROOMS = ['120호', '128호', '129호', '219호', '229호'];
@@ -211,7 +210,8 @@
       {bg: '#F4C0D1', tc: '#72243E'}, {bg: '#D3D1C7', tc: '#2C2C2A'},
     ];
     
-    let state = { queue: [], nextNum: 1, currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '0000' };
+    // 로컬 세션 상태 및 캐시 구조
+    let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '0000' };
     let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false, testMode = false;
     let weekOffset = 0, sidebarOpen = true, pendingBooking = null, pendingAdminBooking = null;
     
@@ -246,59 +246,57 @@
         while (usedIndices.includes(idx) && idx < COLORS.length) idx++;
         if (idx >= COLORS.length) idx = Object.keys(state.nameColors).length % COLORS.length;
         state.nameColors[name] = idx;
-        saveLocalMetadata();
       }
       return COLORS[state.nameColors[name]];
     }
-    
-    // 로컬 브라우저 상태 관리 분리
-    function saveLocalMetadata() {
-      localStorage.setItem('myNum', JSON.stringify(myNum));
-      localStorage.setItem('myName', JSON.stringify(myName));
-    }
-    
-    // [수정] 데이터 원본을 로컬이 아닌 Supabase 백엔드 서버에서 호출하도록 변경
-    async function fetchFromSupabase() {
+
+    // 3. Supabase 데이터베이스 원격 동기화 함수군
+    async function syncFromSupabase() {
       try {
-        // 1. 예약 데이터 가져오기
-        const { data: dbBookings, error: bErr } = await supabaseClient.from('bookings').select('*');
-        if (!bErr && dbBookings) {
-          const bookingMap = {};
-          dbBookings.forEach(b => {
-            bookingMap[b.slot_key] = { name: b.name, memo: b.memo, num: b.num };
-          });
-          state.bookings = bookingMap;
+        // 공지사항 가져오기
+        const { data: noticeData, error: noticeErr } = await supabaseClient.from('notices').select('*').order('id', { ascending: true });
+        if (!noticeErr && noticeData) state.notices = noticeData;
+
+        // 순번대기 목록 가져오기
+        const { data: queueData, error: queueErr } = await supabaseClient.from('queue').select('*').order('num', { ascending: true });
+        if (!queueErr && queueData) {
+          state.queue = queueData;
+          const activeNext = queueData.find(q => !q.done);
+          state.currentTurn = activeNext ? activeNext.num : null;
         }
 
-        // 2. 대기열 정보 가져오기
-        const { data: dbQueue, error: qErr } = await supabaseClient.from('queue').select('*').order('num', { ascending: true });
-        if (!qErr && dbQueue) {
-          state.queue = dbQueue;
-          const maxNum = dbQueue.length > 0 ? Math.max(...dbQueue.map(q => q.num)) : 0;
-          state.nextNum = maxNum + 1;
-          const nextTurnItem = dbQueue.find(q => !q.done);
-          state.currentTurn = nextTurnItem ? nextTurnItem.num : null;
+        // 예약정보 가져오기
+        const { data: bookData, error: bookErr } = await supabaseClient.from('bookings').select('*');
+        if (!bookErr && bookData) {
+          const newBookings = {};
+          bookData.forEach(b => { newBookings[b.key] = { name: b.name, memo: b.memo, num: b.num }; });
+          state.bookings = newBookings;
         }
 
-        // 3. 공지사항 가져오기
-        const { data: dbNotices, error: nErr } = await supabaseClient.from('notices').select('*').order('id', { ascending: true });
-        if (!nErr && dbNotices) {
-          state.notices = dbNotices;
-        }
-      } catch (e) {
-        console.error("Supabase 로드 오류:", e);
+        // 시스템 기본 환경설정 (관리자 패스워드 등)
+        const { data: settingsData } = await supabaseClient.from('settings').select('*').single();
+        if (settingsData && settingsData.adminPassword) state.adminPassword = settingsData.adminPassword;
+
+        render();
+      } catch (err) {
+        console.error('Supabase 데이터 동기화 에러:', err);
       }
-      render();
     }
-    
-    function loadState() {
+
+    // 초기 상태 로드 함수
+    async function initSystem() {
       const savedMyNum = localStorage.getItem('myNum');
       if (savedMyNum) myNum = JSON.parse(savedMyNum);
       const savedMyName = localStorage.getItem('myName');
       if (savedMyName) myName = JSON.parse(savedMyName);
       
-      // 예약 및 대기목록은 Supabase에서 새로고침하여 로드함
-      fetchFromSupabase();
+      // 원격 서버로부터 데이터 땡겨오기
+      await syncFromSupabase();
+      
+      // 실시간 변경 감지 채널 활성화 (Realtime 브로드캐스팅)
+      supabaseClient.channel('schema-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => { syncFromSupabase(); })
+        .subscribe();
     }
     
     function showToast(msg, duration = 2500) {
@@ -324,9 +322,349 @@
       } else { showToast('비밀번호가 틀렸습니다'); }
     }
     
-    function saveAdminPassword() {
+    async function saveAdminPassword() {
       const newPw = document.getElementById('newPassword').value.trim();
       const confirmPw = document.getElementById('confirmPassword').value.trim();
       if (!newPw || !confirmPw) { showToast('비밀번호를 입력해 주세요'); return; }
       if (newPw.length < 4) { showToast('비밀번호는 최소 4자 이상이어야 합니다'); return; }
-      if (newPw
+      if (newPw !== confirmPw) { showToast('비밀번호가 일치하지 않습니다'); return; }
+      
+      try {
+        const { error } = await supabaseClient.from('settings').upsert({ id: 1, adminPassword: newPw });
+        if (error) throw error;
+        state.adminPassword = newPw;
+        closeModal('adminSettingModal');
+        document.getElementById('newPassword').value = ''; document.getElementById('confirmPassword').value = '';
+        showToast('✓ 비밀번호가 변경되었습니다');
+      } catch (err) {
+        showToast('비밀번호 변경 실패: 테이블 권한 확인 필요');
+      }
+    }
+    
+    async function joinQueue() {
+      const name = document.getElementById('queueInput')?.value?.trim();
+      if (!name) { showToast('성함을 입력해 주세요'); return; }
+      if (myNum !== null) { showToast('이미 순번을 받으셨습니다'); return; }
+      
+      // 고유 순번 결정을 위한 계산
+      const nextNum = state.queue.length > 0 ? Math.max(...state.queue.map(q => q.num)) + 1 : 1;
+      
+      try {
+        const { error } = await supabaseClient.from('queue').insert([{ num: nextNum, name: name, done: false }]);
+        if (error) throw error;
+        
+        myNum = nextNum; myName = name;
+        localStorage.setItem('myNum', JSON.stringify(myNum));
+        localStorage.setItem('myName', JSON.stringify(myName));
+        
+        document.getElementById('queueInput').value = '';
+        await syncFromSupabase();
+        showToast(`✓ ${nextNum}번 순번이 부여되었습니다`);
+      } catch (err) {
+        showToast('순번생성 실패: Supabase의 queue 테이블 설정을 확인하세요.');
+      }
+    }
+    
+    function clickSlot(weekIdx, roomIdx, timeIdx) {
+      const dates = getWeekDates(weekOffset);
+      const date = formatDate(dates[weekIdx]);
+      const key = slotKey(date, roomIdx, timeIdx);
+      const mode = getMode();
+      
+      if (isAdmin) {
+        pendingAdminBooking = {date, roomIdx, timeIdx, key};
+        const d = dates[weekIdx];
+        document.getElementById('adminBookInfo').textContent = `${ROOMS[roomIdx]} — ${d.getMonth()+1}/${d.getDate()} ${SLOTS[timeIdx]}${state.bookings[key] ? ` | 현재: ${state.bookings[key].name}` : ''}`;
+        document.getElementById('adminBookName').value = state.bookings[key]?.name || '';
+        document.getElementById('adminBookMemo').value = state.bookings[key]?.memo || '';
+        document.getElementById('deleteBtn').style.display = state.bookings[key] ? '' : 'none';
+        openModal('adminBookModal');
+        return;
+      }
+      
+      if (mode === 'locked') { showToast('월요일 오전 9시에 예약이 시작됩니다'); return; }
+      
+      if (mode === 'queue') {
+        if (myNum === null) { showToast('순번을 먼저 받아 주세요'); return; }
+        if (state.currentTurn !== myNum) { const qItem = state.queue.find(q => q.num === state.currentTurn); showToast(`현재 ${state.currentTurn}번 ${qItem?.name || ''}님이 입력 중입니다`); return; }
+        if (state.bookings[key]) { showToast('이미 예약된 슬롯입니다'); return; }
+        selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
+        render(); return;
+      }
+      
+      if (state.bookings[key]) { const b = state.bookings[key]; showToast(`${b.name}${b.memo ? ' · ' + b.memo : ''}`); return; }
+      
+      pendingBooking = {date, roomIdx, timeIdx, key};
+      const d = dates[weekIdx];
+      document.getElementById('bookingRoom').textContent = ROOMS[roomIdx];
+      document.getElementById('bookingTime').textContent = `${d.getMonth()+1}/${d.getDate()} (${DAYS[d.getDay()]}) ${SLOTS[timeIdx]}`;
+      document.getElementById('bookingName').value = '';
+      document.getElementById('bookingMemo').value = '';
+      openModal('bookingModal');
+      setTimeout(() => document.getElementById('bookingName').focus(), 100);
+    }
+    
+    async function deleteBooking(key) {
+      const booking = state.bookings[key];
+      if (!booking) return;
+      if (booking.name !== myName && !isAdmin) { showToast('본인이 입력한 예약만 삭제할 수 있습니다'); return; }
+      
+      try {
+        const { error } = await supabaseClient.from('bookings').delete().eq('key', key);
+        if (error) throw error;
+        showToast('✓ 예약이 삭제되었습니다');
+        await syncFromSupabase();
+      } catch (err) {
+        showToast('삭제 실패: ' + err.message);
+      }
+    }
+    
+    async function saveBooking() {
+      if (!pendingBooking) return;
+      const name = document.getElementById('bookingName').value.trim();
+      if (!name) { showToast('예약자명을 입력해 주세요'); return; }
+      const memo = document.getElementById('bookingMemo').value.trim();
+      
+      try {
+        const { error } = await supabaseClient.from('bookings').insert([{ key: pendingBooking.key, name: name, memo: memo, num: 'free' }]);
+        if (error) throw error;
+        closeModal('bookingModal'); pendingBooking = null;
+        await syncFromSupabase();
+        showToast('✓ 예약 완료');
+      } catch (err) {
+        showToast('저장 실패: ' + err.message);
+      }
+    }
+    
+    async function saveAdminBooking() {
+      if (!pendingAdminBooking) return;
+      const name = document.getElementById('adminBookName').value.trim() || '관리자';
+      const memo = document.getElementById('adminBookMemo').value.trim();
+      
+      try {
+        const { error } = await supabaseClient.from('bookings').upsert([{ key: pendingAdminBooking.key, name: name, memo: memo, num: 'admin' }]);
+        if (error) throw error;
+        closeModal('adminBookModal'); pendingAdminBooking = null;
+        await syncFromSupabase();
+        showToast('✓ 강제 예약 완료');
+      } catch (err) {
+        showToast('저장 실패: ' + err.message);
+      }
+    }
+    
+    async function deleteAdminBooking() {
+      if (pendingAdminBooking && state.bookings[pendingAdminBooking.key]) {
+        try {
+          const { error } = await supabaseClient.from('bookings').delete().eq('key', pendingAdminBooking.key);
+          if (error) throw error;
+          closeModal('adminBookModal'); pendingAdminBooking = null;
+          await syncFromSupabase();
+          showToast('예약 삭제됨');
+        } catch (err) {
+          showToast('삭제 실패: ' + err.message);
+        }
+      }
+    }
+    
+    async function submitBooking() {
+      if (selectedSlots.size === 0) { showToast('선택한 슬롯이 없습니다'); return; }
+      
+      try {
+        const batchRecords = [];
+        selectedSlots.forEach(key => { batchRecords.push({ key: key, name: myName, memo: '순번제 예약', num: String(myNum) }); });
+        
+        // 1. 예약 정보 업로드
+        const { error: insertErr } = await supabaseClient.from('bookings').insert(batchRecords);
+        if (insertErr) throw insertErr;
+        
+        // 2. 대기열 상태 완료(done=true)로 업데이트
+        const { error: queueErr } = await supabaseClient.from('queue').update({ done: true }).eq('num', myNum);
+        if (queueErr) throw queueErr;
+        
+        selectedSlots.clear();
+        const prevName = myName;
+        myNum = null; myName = '';
+        localStorage.removeItem('myNum'); localStorage.removeItem('myName');
+        
+        await syncFromSupabase();
+        showToast(`✓ ${prevName}님 예약 완료! 다음 순번으로 이양`);
+      } catch (err) {
+        showToast('제출 실패: ' + err.message);
+      }
+    }
+    
+    function clearSelection() { selectedSlots.clear(); render(); }
+    
+    async function postNotice() {
+      const notice = document.getElementById('noticeInput').value.trim();
+      if (!notice) { showToast('공지 내용을 입력해 주세요'); return; }
+      
+      try {
+        const { error } = await supabaseClient.from('notices').insert([{ id: Date.now(), text: notice }]);
+        if (error) throw error;
+        document.getElementById('noticeInput').value = '';
+        await syncFromSupabase();
+        showToast('✓ 공지 게시됨');
+      } catch (err) {
+        showToast('공지 작성 실패: ' + err.message);
+      }
+    }
+    
+    async function deleteNotice(id) {
+      try {
+        const { error } = await supabaseClient.from('notices').delete().eq('id', id);
+        if (error) throw error;
+        await syncFromSupabase();
+        showToast('공지 삭제됨');
+      } catch (err) {
+        showToast('공지 삭제 실패: ' + err.message);
+      }
+    }
+    
+    function toggleSidebar() { sidebarOpen = !sidebarOpen; document.getElementById('sidebar').classList.toggle('sidebar-hidden', !sidebarOpen); }
+    function changeWeek(d) { weekOffset += d; render(); }
+    function toggleTestMode() { testMode = document.getElementById('testMode').checked; render(); }
+    
+    function render() {
+      const dates = getWeekDates(weekOffset);
+      const mode = getMode();
+      const banner = document.getElementById('banner');
+      const badge = document.getElementById('badge');
+      
+      if (mode === 'locked') {
+        badge.className = 'badge badge-locked';
+        badge.textContent = '🔒 잠김';
+        const now = new Date();
+        const unlock = new Date(now);
+        if (now.getDay() !== 1) { unlock.setDate(now.getDate() + (8 - now.getDay()) % 7); }
+        unlock.setHours(9, 0, 0, 0);
+        banner.textContent = `⏰ 오픈까지 ${formatCountdown(unlock - now)}`;
+      } else if (mode === 'queue') {
+        badge.className = 'badge badge-queue';
+        badge.textContent = '📋 순번제';
+        if (state.currentTurn) {
+          const qItem = state.queue.find(q => q.num === state.currentTurn);
+          const isMe = state.currentTurn === myNum;
+          const color = getColorByName(qItem?.name || '');
+          banner.innerHTML = `<span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 500;">${state.currentTurn}번 ${qItem?.name || ''}</span>님 입력 중${isMe ? ' — <strong>내 차례!</strong>' : ''}`;
+          banner.style.background = isMe ? '#e8f5e9' : '#e3f2fd';
+        } else {
+          banner.textContent = '대기자 없음';
+        }
+      } else {
+        badge.className = 'badge badge-free';
+        badge.textContent = '🔓 자율예약';
+        banner.textContent = '자율 예약 기간입니다';
+      }
+      
+      const noticeSection = document.getElementById('noticeSection');
+      if (state.notices && state.notices.length > 0) {
+        noticeSection.style.display = 'block';
+        noticeSection.innerHTML = `<div id="noticeList">${state.notices.map(n => `<div class="notice-item"><div class="notice-text">📢 ${n.text}</div>${isAdmin ? `<button onclick="deleteNotice(${n.id})">×</button>` : ''}</div>`).join('')}</div>`;
+      } else {
+        noticeSection.style.display = 'none';
+      }
+      
+      document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
+      
+      const sidebar = document.getElementById('sidebarContent');
+      if (isAdmin) {
+        sidebar.innerHTML = `<div class="admin-badge">🛡️ 관리자 모드</div><div class="sidebar-section" style="margin-top: 12px;">📢 공지사항</div><textarea id="noticeInput" style="width: 100%; padding: 6px; border: 0.5px solid var(--border-primary); border-radius: 4px; resize: vertical; min-height: 60px; font-size: 11px;" placeholder="공지 내용 입력"></textarea><button class="btn btn-primary" style="width: 100%; margin-top: 4px;" onclick="postNotice()">게시</button><button class="btn" style="width: 100%; margin-top: 8px; font-size: 11px;" onclick="openModal('adminSettingModal')">🔐 비밀번호 변경</button>`;
+      } else {
+        if (mode === 'queue') {
+          if (myNum !== null) {
+            const color = getColorByName(myName);
+            sidebar.innerHTML = `<div class="my-badge"><span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 10px;">${myNum}번</span><strong>${myName}</strong>님 대기</div>`;
+          } else {
+            sidebar.innerHTML = `<div class="sidebar-section">🎫 순번 등록</div><div class="input-group"><input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()"><button class="btn" onclick="joinQueue()">+</button></div>`;
+          }
+        } else if (mode === 'locked') {
+          sidebar.innerHTML = `<div class="sidebar-section">🎫 사전 순번 등록</div><p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">월요일 9시 전에 순번을 받아 두세요.</p><div class="input-group" style="margin-top: 8px;"><input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()"><button class="btn" onclick="joinQueue()">+</button></div>`;
+        } else {
+          sidebar.innerHTML = `<div class="sidebar-section">📅 자율 예약</div><p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">빈 칸을 눌러 예약하세요.</p>`;
+        }
+        
+        if (state.queue && state.queue.length > 0) {
+          const queueHtml = state.queue.map(q => {
+            const color = getColorByName(q.name);
+            const isActive = q.num === state.currentTurn && !q.done;
+            return `<div class="queue-item${isActive ? ' active' : ''}${q.done ? ' done' : ''}"><span class="queue-num" style="background: ${color.bg}; color: ${color.tc};">${q.num}</span><span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${q.name}</span><span style="font-size: 10px; color: var(--text-secondary);">${q.done ? '완료' : isActive ? '입력' : '대기'}</span></div>`;
+          }).join('');
+          const queueDiv = document.createElement('div');
+          queueDiv.innerHTML = `<div class="sidebar-section" style="margin-top: 10px;">📋 대기 목록</div><div style="display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto;">${queueHtml}</div>`;
+          sidebar.appendChild(queueDiv);
+        }
+      }
+      
+      // 예약 타임테이블 렌더링
+      let tableHtml = '<thead><tr><th class="time-header"></th>';
+      dates.forEach(d => {
+        const isToday = formatDate(d) === formatDate(new Date());
+        const isMon = d.getDay() === 1;
+        const style = isToday ? 'background: var(--bg-info); color: var(--text-info);' : '';
+        const bottom = isMon && !testMode ? 'border-bottom: 1px solid var(--text-warning);' : '';
+        tableHtml += `<th colspan="5" style="${style}${bottom}">${d.getMonth()+1}/${d.getDate()} ${DAYS[d.getDay()]}${isMon ? '<br><span style="font-size: 8px; opacity: 0.6;">순번</span>' : ''}</th>`;
+      });
+      tableHtml += '</tr><tr><th class="time-header">시간</th>';
+      dates.forEach(() => { ROOMS.forEach(r => tableHtml += `<th>${r}</th>`); });
+      tableHtml += '</tr></thead><tbody>';
+      
+      SLOTS.forEach((slot, si) => {
+        tableHtml += `<tr><td class="time-label">${slot}</td>`;
+        dates.forEach((d, di) => {
+          const date = formatDate(d);
+          const isMon = d.getDay() === 1;
+          const topBorder = isMon && si === 0 && !testMode ? 'border-top: 1.5px solid #FAC775;' : '';
+          
+          for (let ri = 0; ri < ROOMS.length; ri++) {
+            const key = slotKey(date, ri, si);
+            const booking = state.bookings[key];
+            const isSelected = selectedSlots.has(key);
+            
+            let style = topBorder;
+            let cellContent = '';
+            let onClickHandler = `onclick="clickSlot(${di}, ${ri}, ${si})"`;
+            
+            if (booking) {
+              const color = getColorByName(booking.name);
+              style += `background: ${color.bg}; color: ${color.tc};`;
+              cellContent = booking.name;
+              
+              if (booking.name === myName || isAdmin) {
+                onClickHandler = `onclick="deleteBooking('${key}')" style="cursor: pointer;"`;
+              } else {
+                onClickHandler = '';
+              }
+            } else if (isSelected) {
+              style += 'background: #c8c2ff; color: #4a3f8f;';
+              cellContent = '✓';
+            }
+            
+            tableHtml += `<td class="${booking ? 'booked' : 'empty'}" style="${style}" ${onClickHandler} title="${booking ? booking.name + (booking.memo ? ' · ' + booking.memo : '') : ''}">${cellContent}</td>`;
+          }
+        });
+        tableHtml += '</tr>';
+      });
+      
+      tableHtml += '</tbody>';
+      document.getElementById('table').innerHTML = tableHtml;
+      
+      const footer = document.getElementById('footer');
+      const isMyTurn = myNum !== null && myNum === state.currentTurn && mode === 'queue';
+      if (isMyTurn || selectedSlots.size > 0) {
+        footer.style.display = 'flex';
+        const count = selectedSlots.size;
+        document.getElementById('footerText').innerHTML = isMyTurn ? (count === 0 ? `<strong>${myName}</strong>님, 빈 칸을 클릭해 선택하세요` : `<strong style="color: var(--text-success);">${count}개</strong> 선택됨`) : `${count}개 슬롯 선택됨`;
+        document.getElementById('submitBtn').disabled = count === 0;
+      } else {
+        footer.style.display = 'none';
+      }
+    }
+    
+    window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.classList.remove('active'); });
+    
+    // 시스템 초기화 트리거 실행
+    initSystem();
+  </script>
+</body>
+</html>
