@@ -297,7 +297,7 @@
         const { data: noticeData } = await supabaseClient.from('notices').select('*').order('id', { ascending: true });
         if (noticeData) state.notices = noticeData;
 
-        const { data: queueData } = await supabaseClient.from('queue').select('*').order('num', { ascending: true });
+        const { data: queueData } = await supabaseClient.from('queue').select('*').order('created_at', { ascending: true }).order('num', { ascending: true });
         if (queueData) {
           state.queue = queueData;
           const activeNext = queueData.find(q => !q.done);
@@ -412,15 +412,25 @@
       const name = document.getElementById('queueInput')?.value?.trim();
       if (!name) { showToast('이름을 입력하세요.'); return; }
       
-      const nextNum = state.queue.length > 0 ? Math.max(...state.queue.map(q => q.num)) + 1 : 1;
       try {
-        await supabaseClient.from('queue').insert([{ num: nextNum, name: name, done: false }]);
-        myNum = nextNum; myName = name;
+        // num을 클라이언트에서 계산하지 않고 DB에서 MAX+1을 원자적으로 처리
+        // 동시 등록 Race Condition 방지: insert 후 반환된 실제 num을 사용
+        const { data, error } = await supabaseClient
+          .from('queue')
+          .insert([{ name: name, done: false }])  // created_at은 DB 서버 now() 자동 부여
+          .select('num, created_at')
+          .single();
+        if (error) throw error;
+        
+        myNum = data.num; myName = name;
         localStorage.setItem('myNum', JSON.stringify(myNum));
         localStorage.setItem('myName', JSON.stringify(myName));
         await syncFromSupabase();
-        showToast(`✓ 대기번호 ${nextNum}번 발급 완료`);
-      } catch (err) { showToast('순번 등록 실패'); }
+        showToast(`✓ 대기번호 ${myNum}번 발급 완료`);
+      } catch (err) {
+        console.error(err);
+        showToast('순번 등록 실패 — 잠시 후 다시 시도하세요.');
+      }
     }
 
     async function deleteQueueItem(num, name) {
