@@ -43,7 +43,6 @@
     .sidebar { width: 180px; border-right: 0.5px solid var(--border-primary); padding: 10px; overflow-y: auto; background: var(--bg-primary); }
     .sidebar-section { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin: 10px 0 6px 0; }
     
-    /* 대기 등록 입력 상자 강조 디자인 */
     .input-group { display: flex; gap: 5px; margin-top: 5px; }
     .input-group input { flex: 1; padding: 6px 8px; border: 1.5px solid #1976d2; border-radius: 4px; font-size: 12px; font-weight: 500; outline: none; }
     .btn-submit-queue { padding: 6px 12px; background: #1976d2; color: #ffffff; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
@@ -74,10 +73,15 @@
     .toast.show { opacity: 1; }
     .admin-badge { background: var(--bg-danger); color: var(--text-danger); padding: 6px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-align: center; }
     .my-badge { background: var(--bg-success); color: var(--text-success); padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
-    .queue-item { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; }
-    .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
-    .admin-menu-btn { width: 100%; margin-top: 6px; text-align: left; padding: 6px 8px; font-size: 11px; }
     
+    /* 대기 명단 아이템 스타일 정의 */
+    .queue-item { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 7px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; margin-bottom: 3px; }
+    .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
+    .queue-info-text { flex: 1; display: flex; gap: 4px; align-items: center; }
+    .btn-queue-del { background: transparent; border: none; color: var(--text-danger); font-size: 12px; font-weight: bold; cursor: pointer; padding: 0 4px; line-height: 1; }
+    .btn-queue-del:hover { background: rgba(211, 47, 47, 0.1); border-radius: 2px; }
+
+    .admin-menu-btn { width: 100%; margin-top: 6px; text-align: left; padding: 6px 8px; font-size: 11px; }
     .switch-container { display: flex; align-items: center; justify-content: space-between; background: #fffde7; padding: 8px; border-radius: 4px; border: 0.5px solid #fff59d; margin-top: 6px; }
     .switch-label { font-size: 11px; font-weight: bold; color: #f57f17; }
     .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
@@ -236,15 +240,10 @@
       return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
     };
     
-    // [규칙 고도화] 관리자 강제 스위치가 켜졌거나, 혹은 월요일 오전 9시~10시 사이라면 자동으로 순번제 기동
     function getMode() {
       if (state.isQueueMode) return 'queue';
-      
       const now = new Date();
-      // 월요일(1)이면서 오전 9시 정각 ~ 9시 59분 59초 사이일 때
-      if (now.getDay() === 1 && now.getHours() === 9) {
-        return 'queue';
-      }
+      if (now.getDay() === 1 && now.getHours() === 9) return 'queue';
       return 'free';
     }
     
@@ -300,7 +299,6 @@
         .on('postgres_changes', { event: '*', schema: 'public' }, () => { syncFromSupabase(); })
         .subscribe();
 
-      // 주기적으로 자동 타이머 체크 및 배너 문구 실시간 업데이트용 (1초 단위 상시 동기화 검사)
       setInterval(() => { render(); }, 1000);
     }
     
@@ -333,9 +331,7 @@
         state.isQueueMode = isChecked;
         showToast(isChecked ? '📋 수동 강제 순번제가 활성화되었습니다.' : '🔓 자율 모드로 복귀 (자동스케줄러 반영)');
         await syncFromSupabase();
-      } catch (err) {
-        showToast('모드 변경 저장 실패');
-      }
+      } catch (err) { showToast('모드 변경 저장 실패'); }
     }
     
     async function saveAdminPassword() {
@@ -362,6 +358,16 @@
         await syncFromSupabase();
         showToast(`✓ 대기번호 ${nextNum}번 발급 완료`);
       } catch (err) { showToast('순번 등록 실패'); }
+    }
+
+    // [신규 기능] 관리자 대기 순번 개별 영구 취소/삭제 로직
+    async function deleteQueueItem(num, name) {
+      if (!confirm(`⚠️ [${num}번 ${name}] 대기자를 목록에서 강제 제외하시겠습니까?`)) return;
+      try {
+        await supabaseClient.from('queue').delete().eq('num', num);
+        showToast(`✓ ${num}번 대기자 삭제 완료`);
+        await syncFromSupabase();
+      } catch (err) { showToast('대기자 삭제 오류 발생'); }
     }
     
     function clickSlot(weekIdx, roomIdx, timeIdx) {
@@ -572,7 +578,6 @@
       const badge = document.getElementById('badge');
       
       if (mode === 'queue') {
-        // 수동 제어판 켜짐 유무에 따라 상단 안내 문구 자동 표시 변경
         badge.className = 'badge badge-queue';
         badge.textContent = state.isQueueMode ? '📋 순번제 (관리자 강제)' : '⏰ 순번제 (월요 타이머)';
         
@@ -595,7 +600,8 @@
       
       const sidebar = document.getElementById('sidebarContent');
       if (isAdmin) {
-        sidebar.innerHTML = `
+        // [수정 핵심] 관리자 모드인 경우 대기 목록 패널 내에 강제 개별 삭제 '×' 연동
+        let adminSidebarHtml = `
           <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
           
           <div class="switch-container">
@@ -613,12 +619,28 @@
           <textarea id="noticeInput" style="width:100%; font-size:11px; padding:4px;" placeholder="공지사항 내용 입력"></textarea>
           <button class="btn btn-primary" style="width:100%; margin-top:4px;" onclick="postNotice()">공지 배포</button>
           <button class="btn" style="width:100%; margin-top:10px;" onclick="openModal('adminSettingModal')">암호 변경</button>
+          
+          <hr style="margin:15px 0; border:none; border-top:0.5px solid var(--border-primary);">
+          <div class="sidebar-section">⚙️ 대기 제어/삭제 명단</div>
         `;
+
+        if (state.queue.length > 0) {
+          state.queue.forEach(q => {
+            adminSidebarHtml += `
+              <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}">
+                <div class="queue-info-text"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>
+                <button class="btn-queue-del" onclick="deleteQueueItem(${q.num}, '${q.name}')" title="강제 삭제">×</button>
+              </div>`;
+          });
+        } else {
+          adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`;
+        }
+
+        sidebar.innerHTML = adminSidebarHtml;
       } else {
         if (myNum !== null) {
           sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`;
         } else {
-          // [UI 개선] 이름 입력칸 테두리와 [등록] 확인 칸을 진한 파란색 계열로 직관적 설계 적용
           sidebar.innerHTML = `
             <div class="sidebar-section">🎫 대기 순번 등록</div>
             <div class="input-group">
