@@ -825,7 +825,10 @@
           } else { adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`; }
           sidebar.innerHTML = adminSidebarHtml;
         } else {
-          if (myNum !== null) {
+          if (mode !== 'queue') {
+            // 순번제 모드가 아닐 때는 대기 관련 UI 전체 숨김
+            sidebar.innerHTML = '';
+          } else if (myNum !== null) {
             sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`;
           } else {
             // 대기목록 wrapper(id=queueListSection)를 함께 구조에 포함해서 생성
