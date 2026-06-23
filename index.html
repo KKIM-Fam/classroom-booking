@@ -43,7 +43,6 @@
     .sidebar { width: 180px; border-right: 0.5px solid var(--border-primary); padding: 10px; overflow-y: auto; background: var(--bg-primary); }
     .sidebar-section { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin: 10px 0 6px 0; }
     
-    /* 대기 등록 레이아웃 및 확인 버튼 스타일 고정 */
     .input-group { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
     .input-group input { flex: 1; padding: 6px 8px; border: 1.5px solid #1976d2; border-radius: 4px; font-size: 12px; font-weight: 500; outline: none; min-width: 0; }
     .btn-submit-queue { padding: 6px 12px; background: #1976d2; color: #ffffff; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; white-space: nowrap; flex-shrink: 0; }
@@ -210,6 +209,30 @@
       </div>
     </div>
   </div>
+
+  <div class="modal" id="excelUploadModal">
+    <div class="modal-content" style="width: 340px;">
+      <div class="modal-title">📅 고정 시간표 일괄 업로드</div>
+      <p style="font-size:11px; color:var(--text-secondary); margin-bottom:10px; line-height:1.4;">
+        지정한 기간 동안 매주 동일하게 반복 적용될 엑셀(CSV) 시간표를 업로드합니다.
+      </p>
+      
+      <label class="modal-label">📍 1. 기간 설정 (시작일 ~ 종료일)</label>
+      <div style="display:flex; gap:4px; align-items:center;">
+        <input type="date" id="excelStartDate" class="modal-input" style="padding:4px;">
+        <span>~</span>
+        <input type="date" id="excelEndDate" class="modal-input" style="padding:4px;">
+      </div>
+
+      <label class="modal-label">📂 2. 파일 선택 (.csv)</label>
+      <input type="file" id="excelFileInput" accept=".csv" class="modal-input" style="border:none; padding:4px 0;">
+
+      <div class="modal-buttons" style="margin-top:15px;">
+        <button class="btn" onclick="closeModal('excelUploadModal')">닫기</button>
+        <button class="btn btn-primary" onclick="processExcelUpload()">🚀 업로드 시작</button>
+      </div>
+    </div>
+  </div>
   
   <div class="toast" id="toast"></div>
 
@@ -221,6 +244,8 @@
     const ROOMS = ['120호', '128호', '129호', '219호', '229호'];
     const SLOTS = Array.from({length: 15}, (_, i) => `${String(i+9).padStart(2, '0')}:00`);
     const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+    const DAYS_ENG_MAP = { '일요일':0, '월요일':1, '화요일':2, '수요일':3, '목요일':4, '금요일':5, '토요일':6, '일':0, '월':1, '화':2, '수':3, '목':4, '금':5, '토':6 };
+    
     const COLORS = [
       {bg: '#B5D4F4', tc: '#0C447C'}, {bg: '#9FE1CB', tc: '#085041'},
       {bg: '#FAC775', tc: '#633806'}, {bg: '#F5C4B3', tc: '#4A1B0C'},
@@ -279,7 +304,7 @@
 
         const { data: settingsData } = await supabaseClient.from('settings').select('*').single();
         if (settingsData) {
-          if (settingsData.adminPassword) state.adminPassword = settingsData.adminPassword;
+          if (settingsData.adminPassword) state.adminPassword = settingsData.settings_adminPassword || settingsData.adminPassword;
           state.isQueueMode = settingsData.isQueueMode || false;
         }
 
@@ -438,10 +463,30 @@
       } catch (err) { showToast('취소 처리 중 오류가 발생했습니다.'); }
     }
     
+    function countUserDailyBookings(date, name) {
+      let count = 0;
+      Object.keys(state.bookings).forEach(key => {
+        if (key.startsWith(date) && state.bookings[key].name === name) {
+          count++;
+        }
+      });
+      return count;
+    }
+
     async function saveBooking() {
       const name = document.getElementById('bookingName').value.trim();
       if (!name) return;
       const memo = document.getElementById('bookingMemo').value.trim();
+      
+      if (!isAdmin) {
+        const targetDate = pendingBooking.date;
+        const currentCount = countUserDailyBookings(targetDate, name);
+        if (currentCount >= 6) {
+          alert(`🚫 예약 불가: [${name}]님은 해당 날짜(${targetDate})에 이미 6시간을 예약하셨습니다. 하루 최대 6시간까지만 대여 가능합니다.`);
+          return;
+        }
+      }
+
       try {
         await supabaseClient.from('bookings').insert([{ key: pendingBooking.key, name, memo, num: 'free' }]);
         closeModal('bookingModal');
@@ -468,6 +513,24 @@
     }
     
     async function submitBooking() {
+      if (!isAdmin) {
+        const dateGroups = {};
+        selectedSlots.forEach(key => {
+          const date = key.split('_')[0];
+          if (!dateGroups[date]) dateGroups[date] = 0;
+          dateGroups[date]++;
+        });
+
+        for (const date in dateGroups) {
+          const currentCount = countUserDailyBookings(date, myName);
+          const totalAfterSubmit = currentCount + dateGroups[date];
+          if (totalAfterSubmit > 6) {
+            alert(`🚫 예약 확정 불가: [${date}] 날짜에 이미 완료된 예약과 현재 선택한 예약을 합치면 총 ${totalAfterSubmit}시간이 됩니다. 하루 최대 6시간 제한을 초과했습니다.\n(현재 대여 완료: ${currentCount}시간 / 추가 선택: ${dateGroups[date]}시간)`);
+            return;
+          }
+        }
+      }
+
       try {
         const batch = [];
         selectedSlots.forEach(key => { batch.push({ key, name: myName, memo: '순번제 확정', num: String(myNum) }); });
@@ -529,6 +592,118 @@
       link.click();
       document.body.removeChild(link);
       showToast("✓ CSV 내역 파일 다운로드 성공");
+    }
+
+    /* [기능 추가] 엑셀 시간표 업로드 양식 파일(CSV) 다운로드 함수 */
+    function downloadExcelTemplate() {
+      let csvContent = "\uFEFF";
+      csvContent += "요일,강의실,시간,과목명(예약자명),메모\n";
+      csvContent += "월요일,120호,09:00,일반생물학 및 실험,1학년 전공필수\n";
+      csvContent += "월요일,120호,10:00,일반생물학 및 실험,1학년 전공필수\n";
+      csvContent += "화요일,219호,14:00,세포생물학실험,학부생 실습실 고정통제\n";
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", "강의실_고정시간표_양식.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    /* [기능 추가] 업로드된 CSV 텍스트 파싱 및 날짜 주기 루프 삽입 처리 로직 */
+    async function processExcelUpload() {
+      const startInput = document.getElementById('excelStartDate').value;
+      const endInput = document.getElementById('excelEndDate').value;
+      const fileInput = document.getElementById('excelFileInput');
+
+      if (!startInput || !endInput) { alert("시작 날짜와 종료 날짜를 정확히 선택해 주세요."); return; }
+      if (!fileInput.files || fileInput.files.length === 0) { alert("작성하신 CSV 시간표 파일을 선택해 주세요."); return; }
+
+      const startDate = new Date(startInput);
+      const endDate = new Date(endInput);
+      if (startDate > endDate) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = async function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        
+        if (lines.length <= 1) { alert("헤더 외에 입력된 데이터 행이 없습니다."); return; }
+
+        const parsedRules = [];
+        // 1번째 줄(헤더) 제외하고 데이터 파싱
+        for(let i=1; i<lines.length; i++) {
+          const row = lines[i].split(',').map(cell => cell.replace(/^["']|["']$/g, '').trim());
+          if (row.length < 4) continue; // 필수 열 부족 시 패스
+
+          const dayStr = row[0];
+          const roomStr = row[1];
+          const timeStr = row[2];
+          const nameStr = row[3];
+          const memoStr = row[4] || '';
+
+          const dayNum = DAYS_ENG_MAP[dayStr];
+          const roomIdx = ROOMS.indexOf(roomStr);
+          const timeIdx = SLOTS.indexOf(timeStr);
+
+          if (dayNum === undefined || roomIdx === -1 || timeIdx === -1 || !nameStr) {
+            console.warn(`행 무시됨 (잘못된 서식): ${lines[i]}`);
+            continue;
+          }
+          parsedRules.push({ dayNum, roomIdx, timeIdx, name: nameStr, memo: memoStr });
+        }
+
+        if (parsedRules.length === 0) { alert("유효한 시간표 데이터 규칙을 찾지 못했습니다. 요일/강의실명/시간 정보를 확인하세요."); return; }
+
+        // 주기적 날짜 계산 연산 처리 루프
+        const finalBatch = [];
+        let cursor = new Date(startDate);
+
+        while(cursor <= endDate) {
+          const currentDayNum = cursor.getDay(); // 0:일 ~ 6:토
+          
+          // 현재 날짜의 요일과 일치하는 엑셀 규칙 규칙이 있는지 매핑
+          const matches = parsedRules.filter(r => r.dayNum === currentDayNum);
+          
+          matches.forEach(match => {
+            const dateStr = formatDate(cursor);
+            const key = slotKey(dateStr, match.roomIdx, match.timeIdx);
+            finalBatch.push({
+              key: key,
+              name: match.name,
+              memo: match.memo,
+              num: 'admin'
+            });
+          });
+
+          cursor.setDate(cursor.getDate() + 1); // 하루 증가
+        }
+
+        if (finalBatch.length === 0) {
+          alert("설정하신 기간 내에 매칭되는 요일이 한 번도 존재하지 않습니다.");
+          return;
+        }
+
+        if (!confirm(`확인: 총 ${finalBatch.length}개의 슬롯 예약 데이터가 해당 기간 전반에 일괄 분산 삽입됩니다. 진행하시겠습니까?`)) return;
+
+        try {
+          // Supabase 대량 데이터 Upsert 실행
+          const { error } = await supabaseClient.from('bookings').upsert(finalBatch);
+          if (error) throw error;
+
+          closeModal('excelUploadModal');
+          fileInput.value = '';
+          showToast(`🚀 고정 시간표 일괄 배포 완료! (${finalBatch.length}개 슬롯)`);
+          await syncFromSupabase();
+        } catch(err) {
+          alert("Supabase 대량 삽입 실패: " + err.message);
+        }
+      };
+
+      reader.readAsText(file, 'UTF-8');
     }
 
     function requestClearAll() { openModal('clearConfirmModal'); }
@@ -610,9 +785,13 @@
             </label>
           </div>
 
+          <button class="btn admin-menu-btn" style="background:#e3f2fd; color:#1565c0; font-weight:bold; margin-top:10px;" onclick="openModal('excelUploadModal')">📅 고정 시간표 엑셀 업로드</button>
+          <button class="btn admin-menu-btn" style="background:transparent; border:0.5px dashed var(--border-tertiary); font-size:10px; color:var(--text-secondary); margin-top:2px;" onclick="downloadExcelTemplate()">📥 샘플 엑셀(CSV) 다운로드</button>
+
           <button class="btn admin-menu-btn" style="background:#fff3e0; color:#e65100; margin-top:10px;" onclick="lockEntireRoomDay()">🔒 강의실 하루 통째 잠금</button>
           <button class="btn admin-menu-btn" style="background:#e8f5e9; color:#1b5e20;" onclick="downloadCSVExport()">📊 전체 내역 엑셀 다운로드</button>
           <button class="btn admin-menu-btn" style="background:#ffebee; color:#b71c1c;" onclick="requestClearAll()">🔥 전체 데이터 초기화</button>
+          
           <hr style="margin:10px 0; border:none; border-top:0.5px solid var(--border-primary);">
           <textarea id="noticeInput" style="width:100%; font-size:11px; padding:4px;" placeholder="공지사항 내용 입력"></textarea>
           <button class="btn btn-primary" style="width:100%; margin-top:4px;" onclick="postNotice()">공지 배포</button>
@@ -636,7 +815,6 @@
 
         sidebar.innerHTML = adminSidebarHtml;
       } else {
-        // [버튼 버그 수정] 일반 예약자 렌더링 화면에 input-group과 btn-submit-queue 구조를 정상 적용하여 고쳤습니다.
         if (myNum !== null) {
           sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`;
         } else {
