@@ -772,62 +772,77 @@
       
       document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
       
-      // 순번제 모드 이름 입력칸 값 보존 (1초 render 재빌드 시 입력값 소실 방지)
-      const prevQueueInput = document.getElementById('queueInput')?.value ?? '';
+      // ── 한국어 IME 보호: queueInput 포커스 중에는 사이드바 DOM을 재빌드하지 않음 ──
+      const queueInputEl = document.getElementById('queueInput');
+      const queueInputFocused = (document.activeElement === queueInputEl);
 
       const sidebar = document.getElementById('sidebarContent');
-      if (isAdmin) {
-        let adminSidebarHtml = `
-          <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
-          <div class="switch-container">
-            <span class="switch-label">📋 강제 순번제 모드</span>
-            <label class="switch">
-              <input type="checkbox" id="queueModeToggle" onchange="toggleQueueMode(this)" ${state.isQueueMode ? 'checked' : ''}>
-              <span class="slider"></span>
-            </label>
-          </div>
-          <button class="btn admin-menu-btn" style="background:#e3f2fd; color:#1565c0; font-weight:bold; margin-top:10px;" onclick="openModal('excelUploadModal')">📅 고정 시간표 엑셀 업로드</button>
-          <button class="btn admin-menu-btn" style="background:transparent; border:0.5px dashed var(--border-tertiary); font-size:10px; color:var(--text-secondary); margin-top:2px;" onclick="downloadExcelTemplate()">📥 샘플 엑셀(CSV) 다운로드</button>
-          <button class="btn admin-menu-btn" style="background:#fff3e0; color:#e65100; margin-top:10px;" onclick="lockEntireRoomDay()">🔒 강의실 하루 통째 잠금</button>
-          <button class="btn admin-menu-btn" style="background:#e8f5e9; color:#1b5e20;" onclick="downloadCSVExport()">📊 전체 내역 엑셀 다운로드</button>
-          <button class="btn admin-menu-btn" style="background:#ffebee; color:#b71c1c;" onclick="requestClearAll()">🔥 전체 데이터 초기화</button>
-          <hr style="margin:10px 0; border:none; border-top:0.5px solid var(--border-primary);">
-          <textarea id="noticeInput" style="width:100%; font-size:11px; padding:4px;" placeholder="공지사항 내용 입력"></textarea>
-          <button class="btn btn-primary" style="width:100%; margin-top:4px;" onclick="postNotice()">공지 배포</button>
-          <button class="btn" style="width:100%; margin-top:10px;" onclick="openModal('adminSettingModal')">암호 변경</button>
-          <hr style="margin:15px 0; border:none; border-top:0.5px solid var(--border-primary);">
-          <div class="sidebar-section">⚙️ 대기 제어/삭제 명단</div>
-        `;
-        if (state.queue.length > 0) {
-          state.queue.forEach(q => {
-            adminSidebarHtml += `
-              <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}">
-                <div class="queue-info-text"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>
-                <button class="btn-queue-del" onclick="deleteQueueItem(${q.num}, '${q.name}')" title="강제 삭제">×</button>
-              </div>`;
-          });
-        } else { adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`; }
-        sidebar.innerHTML = adminSidebarHtml;
+
+      if (queueInputFocused) {
+        // ── 포커스 중: 입력란은 절대 건드리지 않고, 대기목록 wrapper만 갱신 ──
+        const queueListSection = document.getElementById('queueListSection');
+        if (queueListSection) {
+          if (state.queue.length > 0) {
+            let qHtml = `<div class="sidebar-section" style="margin-top:15px;">📋 실시간 대기 목록</div>`;
+            state.queue.forEach(q => { qHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`; });
+            queueListSection.innerHTML = qHtml;
+          } else {
+            queueListSection.innerHTML = '';
+          }
+        }
       } else {
-        if (myNum !== null) { sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`; }
-        else {
-          sidebar.innerHTML = `
-            <div class="sidebar-section">🎫 대기 순번 등록</div>
-            <div class="input-group">
-              <input type="text" id="queueInput" placeholder="이름 입력" onkeydown="if(event.key==='Enter')joinQueue()">
-              <button class="btn-submit-queue" onclick="joinQueue()">등록</button>
-            </div>`;
+        // ── 포커스 없을 때: 사이드바 전체 재빌드 ──
+        if (isAdmin) {
+          let adminSidebarHtml = `
+            <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
+            <div class="switch-container">
+              <span class="switch-label">📋 강제 순번제 모드</span>
+              <label class="switch">
+                <input type="checkbox" id="queueModeToggle" onchange="toggleQueueMode(this)" ${state.isQueueMode ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <button class="btn admin-menu-btn" style="background:#e3f2fd; color:#1565c0; font-weight:bold; margin-top:10px;" onclick="openModal('excelUploadModal')">📅 고정 시간표 엑셀 업로드</button>
+            <button class="btn admin-menu-btn" style="background:transparent; border:0.5px dashed var(--border-tertiary); font-size:10px; color:var(--text-secondary); margin-top:2px;" onclick="downloadExcelTemplate()">📥 샘플 엑셀(CSV) 다운로드</button>
+            <button class="btn admin-menu-btn" style="background:#fff3e0; color:#e65100; margin-top:10px;" onclick="lockEntireRoomDay()">🔒 강의실 하루 통째 잠금</button>
+            <button class="btn admin-menu-btn" style="background:#e8f5e9; color:#1b5e20;" onclick="downloadCSVExport()">📊 전체 내역 엑셀 다운로드</button>
+            <button class="btn admin-menu-btn" style="background:#ffebee; color:#b71c1c;" onclick="requestClearAll()">🔥 전체 데이터 초기화</button>
+            <hr style="margin:10px 0; border:none; border-top:0.5px solid var(--border-primary);">
+            <textarea id="noticeInput" style="width:100%; font-size:11px; padding:4px;" placeholder="공지사항 내용 입력"></textarea>
+            <button class="btn btn-primary" style="width:100%; margin-top:4px;" onclick="postNotice()">공지 배포</button>
+            <button class="btn" style="width:100%; margin-top:10px;" onclick="openModal('adminSettingModal')">암호 변경</button>
+            <hr style="margin:15px 0; border:none; border-top:0.5px solid var(--border-primary);">
+            <div class="sidebar-section">⚙️ 대기 제어/삭제 명단</div>
+          `;
+          if (state.queue.length > 0) {
+            state.queue.forEach(q => {
+              adminSidebarHtml += `
+                <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}">
+                  <div class="queue-info-text"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>
+                  <button class="btn-queue-del" onclick="deleteQueueItem(${q.num}, '${q.name}')" title="강제 삭제">×</button>
+                </div>`;
+            });
+          } else { adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`; }
+          sidebar.innerHTML = adminSidebarHtml;
+        } else {
+          if (myNum !== null) {
+            sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`;
+          } else {
+            // 대기목록 wrapper(id=queueListSection)를 함께 구조에 포함해서 생성
+            let queueHtml = '';
+            if (state.queue.length > 0) {
+              queueHtml = `<div class="sidebar-section" style="margin-top:15px;">📋 실시간 대기 목록</div>`;
+              state.queue.forEach(q => { queueHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`; });
+            }
+            sidebar.innerHTML = `
+              <div class="sidebar-section">🎫 대기 순번 등록</div>
+              <div class="input-group">
+                <input type="text" id="queueInput" placeholder="이름 입력" onkeydown="if(event.key==='Enter')joinQueue()">
+                <button class="btn-submit-queue" onclick="joinQueue()">등록</button>
+              </div>
+              <div id="queueListSection">${queueHtml}</div>`;
+          }
         }
-        if (state.queue.length > 0) {
-          let qHtml = `<div class="sidebar-section" style="margin-top:15px;">📋 실시간 대기 목록</div>`;
-          state.queue.forEach(q => { qHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`; });
-          sidebar.innerHTML += qHtml;
-        }
-      }
-      // 이름 입력칸이 다시 렌더됐을 때 기존 입력값 복원
-      const restoredQueueInput = document.getElementById('queueInput');
-      if (restoredQueueInput && prevQueueInput) {
-        restoredQueueInput.value = prevQueueInput;
       }
       
       let tableHtml = '<thead><tr><th class="time-header">시간</th>';
