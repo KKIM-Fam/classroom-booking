@@ -55,14 +55,14 @@
     table { border-collapse: collapse; width: 100%; font-size: 11px; }
     th { background: var(--bg-secondary); border: 0.5px solid var(--border-primary); padding: 3px 2px; text-align: center; font-weight: 600; font-size: 10px; }
     th.time-header { width: 50px; min-width: 50px; }
-    td { border: 0.5px solid var(--border-primary); height: 26px; text-align: center; cursor: pointer; transition: opacity 0.1s; font-size: 9px; position: relative; }
-    td:hover { opacity: 0.8; }
+    td { border: 0.5px solid var(--border-primary); height: 26px; text-align: center; font-size: 9px; position: relative; }
+    td.empty { background: var(--bg-primary); cursor: pointer; }
+    td.empty:hover { background: var(--bg-secondary); }
     td.time-label { background: var(--bg-secondary); color: var(--text-secondary); cursor: default; padding: 0 4px; font-weight: 600; font-size: 10px; width: 50px; }
-    td.empty { background: var(--bg-primary); }
-    td.booked { font-size: 9px; font-weight: 600; cursor: default; display: flex; align-items: center; justify-content: center; padding: 2px; line-height: 1.2; position: relative; }
-    td.booked:hover::after { content: '✕'; position: absolute; top: -8px; right: -8px; background: var(--text-danger); color: white; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; z-index: 10; }
-    td.selected { background: #c8c2ff; color: #4a3f8f; font-weight: 600; }
-    .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); }
+    td.booked { font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 2px; line-height: 1.2; position: relative; cursor: pointer; }
+    td.booked:hover::after { content: '✕'; position: absolute; top: 4px; right: 4px; background: var(--text-danger); color: white; width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; }
+    td.selected { background: #c8c2ff !important; color: #4a3f8f !important; font-weight: 600; cursor: pointer; }
+    .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); position: sticky; bottom: 0; z-index: 50; }
     .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: none; align-items: flex-start; justify-content: center; z-index: 100; padding-top: 80px; overflow-y: auto; }
     .modal.active { display: flex; }
     .modal-content { background: var(--bg-primary); border-radius: 8px; border: 0.5px solid var(--border-primary); padding: 16px; width: 300px; max-width: 90%; margin-bottom: 40px; }
@@ -73,9 +73,10 @@
     .toast { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: var(--bg-primary); border: 0.5px solid var(--border-primary); border-radius: 6px; padding: 8px 16px; font-size: 12px; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
     .toast.show { opacity: 1; }
     .admin-badge { background: var(--bg-danger); color: var(--text-danger); padding: 6px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-    .my-badge { background: var(--bg-success); color: var(--text-success); padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+    .my-badge { background: var(--bg-success); color: var(--text-success); padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; justify-content: space-between; width: 100%; }
     .queue-item { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; }
-    .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
+    .queue-item.active { background: var(--bg-info); border-color: var(--text-info); font-weight: bold; }
+    .queue-item.done { opacity: 0.5; background: var(--bg-tertiary); }
     .queue-num { padding: 2px 5px; border-radius: 3px; font-weight: 600; font-size: 10px; min-width: 25px; text-align: center; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -84,7 +85,7 @@
   <div class="container">
     <div class="header">
       <button class="btn" onclick="toggleSidebar()">≡</button>
-      <div class="header-title">🏢 강의실 예약</div>
+      <div class="header-title">🏢 강의실 예약 (Supabase)</div>
       <div class="banner" id="banner">로딩 중...</div>
       <div class="badge" id="badge">잠김</div>
       <button class="btn" id="adminBtn" onclick="showAdminLogin()">관리자</button>
@@ -105,14 +106,14 @@
           <span id="weekLabel" style="min-width: 80px; text-align: center;"></span>
           <button class="btn" onclick="changeWeek(1)">▶</button>
           <span style="flex: 1;"></span>
-          <label style="font-size: 10px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-            <input type="checkbox" id="testMode" onchange="toggleTestMode()"> 테스트
+          <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer; background: #fff3e0; padding: 4px 8px; border-radius: 4px; border: 0.5px solid #f57c00;">
+            <input type="checkbox" id="testMode" onchange="toggleTestMode()"> ⚙️ 순번제 테스트 모드
           </label>
         </div>
         
         <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px;">
           <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 12px; height: 12px; background: var(--bg-secondary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
+            <div style="width: 12px; height: 12px; background: var(--bg-primary); border: 0.5px solid var(--border-primary); border-radius: 2px;"></div>
             <span>빈 칸</span>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
@@ -130,7 +131,7 @@
     <div class="footer" id="footer" style="display: none;">
       <div id="footerText" style="flex: 1; font-size: 12px;"></div>
       <button class="btn" onclick="clearSelection()">취소</button>
-      <button class="btn btn-primary" id="submitBtn" onclick="submitBooking()" disabled>완료</button>
+      <button class="btn btn-primary" id="submitBtn" onclick="submitBooking()" disabled>선택 슬롯 예약 완료</button>
     </div>
   </div>
   
@@ -148,13 +149,13 @@
   
   <div class="modal" id="bookingModal">
     <div class="modal-content">
-      <div class="modal-title">자율 예약</div>
+      <div class="modal-title">자율 예약 등록</div>
       <div style="font-size: 13px; font-weight: 500; margin-bottom: 8px;" id="bookingRoom"></div>
       <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="bookingTime"></div>
       <label class="modal-label">예약자명</label>
       <input type="text" class="modal-input" id="bookingName" placeholder="성함 입력" maxlength="14">
       <label class="modal-label">메모 (선택)</label>
-      <input type="text" class="modal-input" id="bookingMemo" placeholder="예: 일반화학 실험">
+      <input type="text" class="modal-input" id="bookingMemo" placeholder="예: 세미나">
       <div class="modal-buttons">
         <button class="btn" onclick="closeModal('bookingModal')">취소</button>
         <button class="btn btn-primary" onclick="saveBooking()">예약</button>
@@ -164,31 +165,15 @@
   
   <div class="modal" id="adminBookModal">
     <div class="modal-content">
-      <div class="modal-title">강제 예약</div>
+      <div class="modal-title">🛡️ 관리자 강제 예약</div>
       <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="adminBookInfo"></div>
       <label class="modal-label">예약자명</label>
-      <input type="text" class="modal-input" id="adminBookName" placeholder="">
+      <input type="text" class="modal-input" id="adminBookName" placeholder="관리자 지정 이름">
       <label class="modal-label">메모</label>
-      <input type="text" class="modal-input" id="adminBookMemo" placeholder="">
+      <input type="text" class="modal-input" id="adminBookMemo" placeholder="사유 입력">
       <div class="modal-buttons">
         <button class="btn" onclick="closeModal('adminBookModal')">취소</button>
-        <button class="btn btn-danger" id="deleteBtn" style="display: none;" onclick="deleteAdminBooking()">삭제</button>
-        <button class="btn btn-primary" onclick="saveAdminBooking()">등록</button>
-      </div>
-    </div>
-  </div>
-  
-  <div class="modal" id="adminSettingModal">
-    <div class="modal-content">
-      <div class="modal-title">🔐 관리자 설정</div>
-      <label class="modal-label">새 비밀번호</label>
-      <input type="password" class="modal-input" id="newPassword" placeholder="새 비밀번호 입력">
-      <label class="modal-label">비밀번호 확인</label>
-      <input type="password" class="modal-input" id="confirmPassword" placeholder="비밀번호 다시 입력" onkeydown="if(event.key==='Enter')saveAdminPassword()">
-      <div style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">최소 4자 이상 입력하세요</div>
-      <div class="modal-buttons">
-        <button class="btn" onclick="closeModal('adminSettingModal')">취소</button>
-        <button class="btn btn-primary" onclick="saveAdminPassword()">변경</button>
+        <button class="btn btn-primary" onclick="saveAdminBooking()">등록/수정</button>
       </div>
     </div>
   </div>
@@ -196,9 +181,8 @@
   <div class="toast" id="toast"></div>
   
   <script>
-    // Supabase 정보 연동
     const SUPABASE_URL = 'https://kdfxydjvexrndqgnmdqz.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_TFXKV2y0oFermMLgv49fdA_cuSrT6TJ'; // 프롬프트 가이드에 맞게 본인 키 전체 대입 요망
+    const SUPABASE_KEY = 'sb_publishable_TFXKV2y0oFermMLgv49fdA_cuSrT'; 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const ROOMS = ['120호', '128호', '129호', '219호', '229호'];
@@ -224,7 +208,7 @@
     };
     
     function getMode() {
-      if (testMode) return 'free';
+      if (testMode) return 'queue'; // 테스트 모드가 켜지면 무조건 순번제 모드로 작동함
       const now = new Date();
       if (now.getDay() === 1) { if (now.getHours() < 9) return 'locked'; if (now.getHours() === 9) return 'queue'; }
       return 'free';
@@ -259,16 +243,14 @@
     
     function loadLocalMetadata() {
       const savedMyNum = localStorage.getItem('myNum');
-      if (savedMyNum) myNum = JSON.parse(savedMyNum);
+      myNum = savedMyNum ? JSON.parse(savedMyNum) : null;
       const savedMyName = localStorage.getItem('myName');
-      if (savedMyName) myName = JSON.parse(savedMyName);
+      myName = savedMyName ? JSON.parse(savedMyName) : '';
       const savedColors = localStorage.getItem('classroomNameColors');
       if (savedColors) state.nameColors = JSON.parse(savedColors);
     }
 
-    // --- Supabase 실시간 동기화 함수들 ---
     async function fetchFromSupabase() {
-      // 1. 예약 목록 연동
       const { data: dbBookings, error: err1 } = await supabaseClient.from('bookings').select('*');
       if (!err1 && dbBookings) {
         const bookingMap = {};
@@ -278,7 +260,6 @@
         state.bookings = bookingMap;
       }
 
-      // 2. 대기열 목록 연동
       const { data: dbQueue, error: err2 } = await supabaseClient.from('queue').select('*').order('num', { ascending: true });
       if (!err2 && dbQueue) {
         state.queue = dbQueue;
@@ -288,7 +269,6 @@
         const nextTurnItem = dbQueue.find(q => !q.done);
         state.currentTurn = nextTurnItem ? nextTurnItem.num : null;
       }
-      
       render();
     }
     
@@ -315,38 +295,31 @@
       } else { showToast('비밀번호가 틀렸습니다'); }
     }
     
-    function saveAdminPassword() {
-      const newPw = document.getElementById('newPassword').value.trim();
-      const confirmPw = document.getElementById('confirmPassword').value.trim();
-      if (!newPw || !confirmPw) { showToast('비밀번호를 입력해 주세요'); return; }
-      if (newPw.length < 4) { showToast('비밀번호는 최소 4자 이상이어야 합니다'); return; }
-      if (newPw !== confirmPw) { showToast('비밀번호가 일치하지 않습니다'); return; }
-      state.adminPassword = newPw; closeModal('adminSettingModal');
-      document.getElementById('newPassword').value = ''; document.getElementById('confirmPassword').value = '';
-      showToast('✓ 비밀번호가 변경되었습니다');
-    }
-    
     async function joinQueue() {
       const name = document.getElementById('queueInput')?.value?.trim();
       if (!name) { showToast('성함을 입력해 주세요'); return; }
       if (myNum !== null) { showToast('이미 순번을 받으셨습니다'); return; }
       
-      // 최신 번호 동기화를 위해 재조회 후 순번 추가
       const { data: dbQueue } = await supabaseClient.from('queue').select('num');
       const maxNum = dbQueue && dbQueue.length > 0 ? Math.max(...dbQueue.map(q => q.num)) : 0;
       const num = maxNum + 1;
 
       const { error } = await supabaseClient.from('queue').insert([{ num, name, done: false }]);
-      if (error) {
-        showToast('순번 등록에 실패했습니다. 다시 시도해주세요.');
-        return;
-      }
+      if (error) { showToast('순번 생성 실패'); return; }
       
       myNum = num; myName = name;
-      document.getElementById('queueInput').value = '';
+      if(document.getElementById('queueInput')) document.getElementById('queueInput').value = '';
       saveLocalMetadata();
       await fetchFromSupabase();
-      showToast(`✓ ${num}번 순번이 부여되었습니다`);
+      showToast(`✓ ${num}번 대기 번호 등록 완료`);
+    }
+
+    function abandonMyTurn() {
+      if (!confirm('현재 대기 번호를 포기하고 초기화하시겠습니까?')) return;
+      myNum = null; myName = '';
+      saveLocalMetadata();
+      render();
+      showToast('대기 번호가 초기화되었습니다.');
     }
     
     function clickSlot(weekIdx, roomIdx, timeIdx) {
@@ -358,44 +331,49 @@
       if (isAdmin) {
         pendingAdminBooking = {date, roomIdx, timeIdx, key};
         const d = dates[weekIdx];
-        document.getElementById('adminBookInfo').textContent = `${ROOMS[roomIdx]} — ${d.getMonth()+1}/${d.getDate()} ${SLOTS[timeIdx]}${state.bookings[key] ? ` | 현재: ${state.bookings[key].name}` : ''}`;
+        document.getElementById('adminBookInfo').textContent = `${ROOMS[roomIdx]} — ${d.getMonth()+1}/${d.getDate()} ${SLOTS[timeIdx]}`;
         document.getElementById('adminBookName').value = state.bookings[key]?.name || '';
         document.getElementById('adminBookMemo').value = state.bookings[key]?.memo || '';
-        document.getElementById('deleteBtn').style.display = state.bookings[key] ? '' : 'none';
         openModal('adminBookModal');
         return;
       }
       
-      if (mode === 'locked') { showToast('월요일 오전 9시에 예약이 시작됩니다'); return; }
+      if (mode === 'locked') { showToast('월요일 오전 9시에 오픈됩니다.'); return; }
       
       if (mode === 'queue') {
-        if (myNum === null) { showToast('순번을 먼저 받아 주세요'); return; }
-        if (state.currentTurn !== myNum) { const qItem = state.queue.find(q => q.num === state.currentTurn); showToast(`현재 ${state.currentTurn}번 ${qItem?.name || ''}님이 입력 중입니다`); return; }
-        if (state.bookings[key]) { showToast('이미 예약된 슬롯입니다'); return; }
+        if (myNum === null) { showToast('왼쪽 메뉴에서 순번을 먼저 등록해 주세요.'); return; }
+        if (state.currentTurn !== myNum) { 
+          const qItem = state.queue.find(q => q.num === state.currentTurn);
+          showToast(`현재는 ${state.currentTurn}번 ${qItem?.name || '무명'}님의 입력 순서입니다.`); 
+          return; 
+        }
         selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
-        render(); return;
+        render(); 
+        return;
       }
       
-      if (state.bookings[key]) { const b = state.bookings[key]; showToast(`${b.name}${b.memo ? ' · ' + b.memo : ''}`); return; }
-      
+      // 자율 예약 모드인 경우
       pendingBooking = {date, roomIdx, timeIdx, key};
       const d = dates[weekIdx];
       document.getElementById('bookingRoom').textContent = ROOMS[roomIdx];
       document.getElementById('bookingTime').textContent = `${d.getMonth()+1}/${d.getDate()} (${DAYS[d.getDay()]}) ${SLOTS[timeIdx]}`;
-      document.getElementById('bookingName').value = '';
-      document.getElementById('bookingMemo').value = '';
       openModal('bookingModal');
-      setTimeout(() => document.getElementById('bookingName').focus(), 100);
     }
     
     async function deleteBooking(key) {
       const booking = state.bookings[key];
       if (!booking) return;
-      if (booking.name !== myName && !isAdmin) { showToast('본인이 입력한 예약만 삭제할 수 있습니다'); return; }
       
+      if (!isAdmin && booking.name !== myName) { 
+        showToast('본인이 등록한 예약만 취소/삭제할 수 있습니다.'); 
+        return; 
+      }
+      
+      if (!confirm(`[${booking.name}]님의 예약을 취소하시겠습니까?`)) return;
+
       const { error } = await supabaseClient.from('bookings').delete().eq('slot_key', key);
       if (!error) {
-        showToast('✓ 예약이 삭제되었습니다');
+        showToast('✓ 예약이 취소되었습니다.');
         await fetchFromSupabase();
       } else {
         showToast('삭제 처리에 실패했습니다.');
@@ -405,17 +383,14 @@
     async function saveBooking() {
       if (!pendingBooking) return;
       const name = document.getElementById('bookingName').value.trim();
-      if (!name) { showToast('예약자명을 입력해 주세요'); return; }
+      if (!name) { showToast('이름을 입력하세요'); return; }
       const memo = document.getElementById('bookingMemo').value.trim();
-      getColorByName(name);
 
       const { error } = await supabaseClient.from('bookings').insert([{ slot_key: pendingBooking.key, name, memo, num: null }]);
       if (!error) {
         closeModal('bookingModal'); pendingBooking = null; 
         showToast('✓ 예약 완료');
         await fetchFromSupabase();
-      } else {
-        showToast('예약 저장에 실패했습니다.');
       }
     }
     
@@ -423,70 +398,43 @@
       if (!pendingAdminBooking) return;
       const name = document.getElementById('adminBookName').value.trim() || '관리자';
       const memo = document.getElementById('adminBookMemo').value.trim();
-      getColorByName(name);
 
-      // 이미 데이터가 있으면 Upsert 구조로 처리
       const { error } = await supabaseClient.from('bookings').upsert([{ slot_key: pendingAdminBooking.key, name, memo, num: 'admin' }]);
       if (!error) {
         closeModal('adminBookModal'); pendingAdminBooking = null; 
-        showToast('✓ 강제 예약 완료');
+        showToast('✓ 관리자 강제 지정 완료');
         await fetchFromSupabase();
-      } else {
-        showToast('관리자 예약 등록 실패');
-      }
-    }
-    
-    async function deleteAdminBooking() {
-      if (pendingAdminBooking && state.bookings[pendingAdminBooking.key]) {
-        const { error } = await supabaseClient.from('bookings').delete().eq('slot_key', pendingAdminBooking.key);
-        if (!error) {
-          closeModal('adminBookModal'); pendingAdminBooking = null;
-          showToast('예약 삭제됨');
-          await fetchFromSupabase();
-        }
       }
     }
     
     async function submitBooking() {
       if (selectedSlots.size === 0) { showToast('선택한 슬롯이 없습니다'); return; }
-      getColorByName(myName);
       
       const inserts = [];
       selectedSlots.forEach(key => {
-        inserts.push({ slot_key: key, name: myName, memo: '', num: String(myNum) });
+        inserts.push({ slot_key: key, name: myName, memo: '순번제 예약', num: String(myNum) });
       });
 
       const { error: bookingErr } = await supabaseClient.from('bookings').insert(inserts);
       if (bookingErr) {
-        showToast('일부 슬롯 저장에 실패했습니다. 다시 시도해 주세요.');
+        showToast('예약 저장 실패 (이미 예약된 칸이 포함되어 있을 수 있습니다.)');
         return;
       }
 
-      // 대기 순번 완료 업데이트
       await supabaseClient.from('queue').update({ done: true }).eq('num', myNum);
 
       selectedSlots.clear();
-      const n = myName; myNum = null; myName = '';
+      showToast(`✓ ${myName}님 예약 완료! 다음 순번으로 전환됩니다.`);
+      
+      // 예약 완료 후 가상 테스트 편의성을 위해 내 로컬 정보 초기화
+      myNum = null; 
+      myName = '';
       saveLocalMetadata();
-      showToast(`✓ ${n}님 예약 완료! 다음 순번으로 이양`);
+      
       await fetchFromSupabase();
     }
     
     function clearSelection() { selectedSlots.clear(); render(); }
-    
-    function postNotice() {
-      const notice = document.getElementById('noticeInput').value.trim();
-      if (!notice) { showToast('공지 내용을 입력해 주세요'); return; }
-      state.notices.push({id: Date.now(), text: notice});
-      document.getElementById('noticeInput').value = '';
-      render(); showToast('✓ 공지 게시됨(로컬 임시)');
-    }
-    
-    function deleteNotice(id) {
-      state.notices = state.notices.filter(n => n.id !== id);
-      render(); showToast('공지 삭제됨');
-    }
-    
     function toggleSidebar() { sidebarOpen = !sidebarOpen; document.getElementById('sidebar').classList.toggle('sidebar-hidden', !sidebarOpen); }
     function changeWeek(d) { weekOffset += d; render(); }
     function toggleTestMode() { testMode = document.getElementById('testMode').checked; render(); }
@@ -498,152 +446,127 @@
       const badge = document.getElementById('badge');
       
       if (mode === 'locked') {
-        badge.className = 'badge badge-locked';
-        badge.textContent = '🔒 잠김';
-        const now = new Date();
-        const unlock = new Date(now);
-        if (now.getDay() !== 1) { unlock.setDate(now.getDate() + (8 - now.getDay()) % 7); }
-        unlock.setHours(9, 0, 0, 0);
-        banner.textContent = `⏰ 월요일 9시 오픈까지 ${formatCountdown(unlock - now)}`;
+        badge.className = 'badge badge-locked'; badge.textContent = '🔒 잠김';
+        banner.textContent = `⏰ 오픈 대기 중`;
       } else if (mode === 'queue') {
-        badge.className = 'badge badge-queue';
-        badge.textContent = '📋 순번제 09-10시';
+        badge.className = 'badge badge-queue'; badge.textContent = '📋 순번제 가동 중';
         if (state.currentTurn) {
           const qItem = state.queue.find(q => q.num === state.currentTurn);
           const isMe = state.currentTurn === myNum;
-          const color = getColorByName(qItem?.name || '');
-          banner.innerHTML = `<span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 500;">${state.currentTurn}번 ${qItem?.name || ''}</span>님 입력 중${isMe ? ' — <strong>내 차례!</strong>' : ''}`;
-          banner.style.background = isMe ? '#e8f5e9' : '#e3f2fd';
+          banner.innerHTML = `현재 <strong style="color:var(--text-info);">[${state.currentTurn}번 ${qItem?.name || '무명'}]</strong>님 입력 차례입니다.${isMe ? ' ➔ <span style="color:var(--text-success);"><strong>(내 차례! 칸 선택 가능)</strong></span>' : ''}`;
         } else {
-          banner.textContent = '대기자 없음';
+          banner.textContent = '대기열에 등록된 사용자가 없습니다.';
         }
       } else {
-        badge.className = 'badge badge-free';
-        badge.textContent = '🔓 자율예약';
-        banner.textContent = '자율 예약 기간입니다';
+        badge.className = 'badge badge-free'; badge.textContent = '🔓 자율예약';
+        banner.textContent = '원하는 빈 공간을 눌러 자유롭게 예약하세요.';
       }
       
-      const noticeSection = document.getElementById('noticeSection');
-      if (state.notices.length > 0) {
-        noticeSection.style.display = 'block';
-        noticeSection.innerHTML = `<div id="noticeList">${state.notices.map(n => `<div class="notice-item"><div class="notice-text">📢 ${n.text}</div>${isAdmin ? `<button onclick="deleteNotice(${n.id})">×</button>` : ''}</div>`).join('')}</div>`;
-      } else {
-        noticeSection.style.display = 'none';
-      }
-      
-      document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
-      
+      // Sidebar UI 생성
       const sidebar = document.getElementById('sidebarContent');
       if (isAdmin) {
-        sidebar.innerHTML = `<div class="admin-badge">🛡️ 관리자 모드</div><div class="sidebar-section" style="margin-top: 12px;">📢 공지사항</div><textarea id="noticeInput" style="width: 100%; padding: 6px; border: 0.5px solid var(--border-primary); border-radius: 4px; resize: vertical; min-height: 60px; font-size: 11px;" placeholder="공지 내용 입력"></textarea><button class="btn btn-primary" style="width: 100%; margin-top: 4px;" onclick="postNotice()">게시</button><button class="btn" style="width: 100%; margin-top: 8px; font-size: 11px;" onclick="openModal('adminSettingModal')">🔐 비밀번호 변경</button>`;
+        sidebar.innerHTML = `<div class="admin-badge">🛡️ 관리자 최고권한</div><p style="margin-top:8px; font-size:11px; color:var(--text-secondary);">모든 슬롯을 클릭하여 강제 제어 및 취소가 가능합니다.</p>`;
       } else {
-        if (mode === 'queue') {
-          if (myNum !== null) {
-            const color = getColorByName(myName);
-            sidebar.innerHTML = `<div class="my-badge"><span style="background: ${color.bg}; color: ${color.tc}; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 10px;">${myNum}번</span><strong>${myName}</strong>님 대기</div>`;
-          } else {
-            sidebar.innerHTML = `<div class="sidebar-section">🎫 순번 등록</div><div class="input-group"><input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()"><button class="btn" onclick="joinQueue()">+</button></div>`;
-          }
-        } else if (mode === 'locked') {
-          sidebar.innerHTML = `<div class="sidebar-section">🎫 사전 순번 등록</div><p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">월요일 9시 전에 순번을 받아 두세요.</p><div class="input-group" style="margin-top: 8px;"><input type="text" id="queueInput" placeholder="성함 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()"><button class="btn" onclick="joinQueue()">+</button></div>`;
+        if (myNum !== null) {
+          const color = getColorByName(myName);
+          sidebar.innerHTML = `
+            <div class="sidebar-section">내 상태</div>
+            <div class="my-badge" style="background:${color.bg}; color:${color.tc};">
+              <span><strong>${myNum}번</strong> ${myName}</span>
+              <button onclick="abandonMyTurn()" style="background:none; border:none; color:inherit; cursor:pointer; font-weight:bold; font-size:12px;">✕</button>
+            </div>
+          `;
         } else {
-          sidebar.innerHTML = `<div class="sidebar-section">📅 자율 예약</div><p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">빈 칸을 눌러 예약하세요.</p>`;
+          sidebar.innerHTML = `
+            <div class="sidebar-section">🎫 대기 순번 등록</div>
+            <div class="input-group">
+              <input type="text" id="queueInput" placeholder="이름 입력" maxlength="12" onkeydown="if(event.key==='Enter')joinQueue()">
+              <button class="btn btn-primary" onclick="joinQueue()">등록</button>
+            </div>
+          `;
         }
         
-        if ((mode === 'queue' || mode === 'locked') && state.queue.length > 0) {
+        if (state.queue.length > 0) {
           const queueHtml = state.queue.map(q => {
             const color = getColorByName(q.name);
             const isActive = q.num === state.currentTurn && !q.done;
-            return `<div class="queue-item${isActive ? ' active' : ''}${q.done ? ' done' : ''}"><span class="queue-num" style="background: ${color.bg}; color: ${color.tc};">${q.num}</span><span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${q.name}</span><span style="font-size: 10px; color: var(--text-secondary);">${q.done ? '완료' : isActive ? '입력' : '대기'}</span></div>`;
+            return `<div class="queue-item${isActive ? ' active' : ''}${q.done ? ' done' : ''}"><span class="queue-num" style="background: ${color.bg}; color: ${color.tc};">${q.num}</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${q.name}</span><span>${q.done ? '완료' : isActive ? '입력중' : '대기'}</span></div>`;
           }).join('');
+          
           const queueDiv = document.createElement('div');
-          queueDiv.innerHTML = `<div class="sidebar-section" style="margin-top: 10px;">📋 대기 목록</div><div style="display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto;">${queueHtml}</div>`;
+          queueDiv.innerHTML = `<div class="sidebar-section" style="margin-top:14px;">📋 전체 실시간 대기열</div><div style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto;">${queueHtml}</div>`;
           sidebar.appendChild(queueDiv);
         }
       }
       
-      // Build table
+      // 시간표 그리기 로직
       let tableHtml = '<thead><tr><th class="time-header"></th>';
       dates.forEach(d => {
         const isToday = formatDate(d) === formatDate(new Date());
-        const isMon = d.getDay() === 1;
-        const style = isToday ? 'background: var(--bg-info); color: var(--text-info);' : '';
-        const bottom = isMon && !testMode ? 'border-bottom: 1px solid var(--text-warning);' : '';
-        tableHtml += `<th colspan="5" style="${style}${bottom}">${d.getMonth()+1}/${d.getDate()} ${DAYS[d.getDay()]}${isMon ? '<br><span style="font-size: 8px; opacity: 0.6;">순번</span>' : ''}</th>`;
+        tableHtml += `<th colspan="5" style="${isToday ? 'background: var(--bg-info); color: var(--text-info);' : ''}">${d.getMonth()+1}/${d.getDate()} (${DAYS[d.getDay()]})</th>`;
       });
       tableHtml += '</tr><tr><th class="time-header">시간</th>';
-      dates.forEach(() => {
-        ROOMS.forEach(r => tableHtml += `<th>${r}</th>`);
-      });
+      dates.forEach(() => { ROOMS.forEach(r => tableHtml += `<th>${r}</th>`); });
       tableHtml += '</tr></thead><tbody>';
       
       SLOTS.forEach((slot, si) => {
         tableHtml += `<tr><td class="time-label">${slot}</td>`;
         dates.forEach((d, di) => {
           const date = formatDate(d);
-          const isMon = d.getDay() === 1;
-          const topBorder = isMon && si === 0 && !testMode ? 'border-top: 1.5px solid #FAC775;' : '';
-          
           for (let ri = 0; ri < ROOMS.length; ri++) {
             const key = slotKey(date, ri, si);
             const booking = state.bookings[key];
             const isSelected = selectedSlots.has(key);
             
-            let style = topBorder;
+            let cellStyle = '';
+            let cellClass = 'empty';
             let cellContent = '';
-            let onClickHandler = `onclick="clickSlot(${di}, ${ri}, ${si})"`;
+            let onClickStr = `onclick="clickSlot(${di}, ${ri}, ${si})"`;
             
             if (booking) {
               const color = getColorByName(booking.name);
-              style += `background: ${color.bg}; color: ${color.tc};`;
+              cellStyle = `background: ${color.bg}; color: ${color.tc};`;
+              cellClass = 'booked';
               cellContent = booking.name;
-              
-              if (booking.name === myName || isAdmin) {
-                onClickHandler = `onclick="deleteBooking('${key}')" style="cursor: pointer;"`;
-              } else {
-                onClickHandler = '';
-              }
+              onClickStr = `onclick="deleteBooking('${key}')"`;
             } else if (isSelected) {
-              style += 'background: #c8c2ff; color: #4a3f8f;';
+              cellClass = 'selected';
               cellContent = '✓';
             }
             
-            tableHtml += `<td class="${booking ? 'booked' : 'empty'}" style="${style}" ${onClickHandler} title="${booking ? booking.name + (booking.memo ? ' · ' + booking.memo : '') : ''}">${cellContent}</td>`;
+            tableHtml += `<td class="${cellClass}" style="${cellStyle}" ${onClickStr} title="${booking ? booking.name + (booking.memo ? ' ('+booking.memo+')' : '') : '비어 있음'}">${cellContent}</td>`;
           }
         });
         tableHtml += '</tr>';
       });
-      
       tableHtml += '</tbody>';
       document.getElementById('table').innerHTML = tableHtml;
       
+      // 하단 예약 확정 바(Footer) 제어
       const footer = document.getElementById('footer');
       const isMyTurn = myNum !== null && myNum === state.currentTurn && mode === 'queue';
-      if (isMyTurn || selectedSlots.size > 0) {
+      if (isMyTurn || (!isMyTurn && selectedSlots.size > 0)) {
         footer.style.display = 'flex';
         const count = selectedSlots.size;
-        document.getElementById('footerText').innerHTML = isMyTurn ? (count === 0 ? `<strong>${myName}</strong>님, 빈 칸을 클릭해 선택하세요` : `<strong style="color: var(--text-success);">${count}개</strong> 선택됨`) : `${count}개 슬롯 선택됨`;
+        document.getElementById('footerText').innerHTML = isMyTurn ? (count === 0 ? `<strong>${myName}</strong>님, 원하는 빈 칸 시간표를 클릭해서 다중 선택해 주세요.` : `💡 <strong>${count}개 슬롯 선택됨</strong>`) : `선택 중...`;
         document.getElementById('submitBtn').disabled = count === 0;
       } else {
         footer.style.display = 'none';
       }
     }
     
-    // 리얼타임 데이터 실시간 동기화 구독 활성화
+    // Supabase Realtime 채널 실시간 바인딩
     supabaseClient
-      .channel('any')
+      .channel('table-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchFromSupabase)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue' }, fetchFromSupabase)
       .subscribe();
 
     window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.classList.remove('active'); });
     
-    // 페이지가 로드될 때 메타데이터 파싱 및 데이터 조회
     loadLocalMetadata();
     fetchFromSupabase();
-    
-    // 주기적 시간 리프레시를 위해 1초마다 화면 업데이트
-    setInterval(render, 1000);
+    setInterval(render, 3000); // 3초마다 시간 동기화 및 렌더링 유지
   </script>
 </body>
 </html>
