@@ -2,83 +2,85 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>강의실 예약 시스템 (입력 최적화 버전)</title>
+  <title>강의실 예약 시스템</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    /* CSS는 이전과 동일하므로 생략 (위의 제공된 스타일 사용) */
+    body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+    .main-container { display: flex; gap: 20px; }
+    #sidebar { width: 250px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #ddd; }
+    input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    td { border: 1px solid #ddd; padding: 10px; text-align: center; cursor: pointer; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div id="sidebarContent"></div>
-    <table id="table"></table>
+
+<div class="main-container">
+  <div id="sidebar">
+    <h3>대기 순번 등록</h3>
+    <input type="text" id="queueInput" placeholder="이름을 입력하세요">
+    <button onclick="joinQueue()">등록하기</button>
+    <hr>
+    <div id="queueList"></div>
   </div>
+  
+  <div style="flex: 1;">
+    <table id="bookingTable">
+      <tr><td>9:00</td><td onclick="clickSlot('9_0')">예약 가능</td></tr>
+      <tr><td>10:00</td><td onclick="clickSlot('10_0')">예약 가능</td></tr>
+    </table>
+  </div>
+</div>
 
-  <script>
-    const supabase = supabase.createClient('https://kdfxydjvexrndqgnmdqz.supabase.co', 'sb_publishable_TFXKV2y0oFermMLgv49fdA_cuSrT6TJ');
+<script>
+  // 1. Supabase 연결
+  const supabase = supabase.createClient('https://kdfxydjvexrndqgnmdqz.supabase.co', 'sb_publishable_TFXKV2y0oFermMLgv49fdA_cuSrT6TJ');
+  
+  let bookings = {};
+  let queue = [];
+
+  // 2. 데이터 가져오기 및 초기화
+  async function fetchData() {
+    const { data: bData } = await supabase.from('bookings').select('*');
+    const { data: qData } = await supabase.from('queue').select('*');
     
-    // 상태 변수
-    let state = { bookings: {}, queue: [] };
-    let queueInputVal = ""; // 입력창 값 보존용 변수
-    let isAdmin = false;
+    if (bData) bookings = bData.reduce((acc, cur) => ({...acc, [cur.key]: cur}), {});
+    if (qData) queue = qData;
+    
+    updateUI();
+  }
 
-    // 데이터 동기화
-    async function sync() {
-      const { data: bData } = await supabase.from('bookings').select('*');
-      const { data: qData } = await supabase.from('queue').select('*');
-      if (bData) state.bookings = bData.reduce((acc, b) => ({ ...acc, [b.key]: b }), {});
-      if (qData) state.queue = qData;
-      render();
+  // 3. 화면 갱신 (입력창 보호를 위해 HTML 통교체 대신 데이터만 갱신)
+  function updateUI() {
+    const listDiv = document.getElementById('queueList');
+    listDiv.innerHTML = queue.map(q => `<div>${q.num}번: ${q.name}</div>`).join('');
+  }
+
+  // 4. 예약/삭제 처리
+  async function clickSlot(key) {
+    const item = bookings[key];
+    if (item && item.num === 'admin') {
+      alert('🔒 관리자 권한으로 고정된 항목입니다.');
+      return;
     }
+    alert('이 슬롯을 예약하시겠습니까?');
+  }
 
-    // [최적화된 렌더링 함수]
-    function render() {
-      const sidebar = document.getElementById('sidebarContent');
-      
-      // 1. 현재 입력값 보존
-      const inputEl = document.getElementById('queueInput');
-      if (inputEl) queueInputVal = inputEl.value;
+  // 5. 대기열 추가
+  async function joinQueue() {
+    const name = document.getElementById('queueInput').value;
+    if (!name) return alert('이름을 입력하세요.');
+    
+    await supabase.from('queue').insert([{ name, done: false }]);
+    document.getElementById('queueInput').value = ''; // 등록 성공 시 비우기
+    fetchData();
+  }
 
-      // 2. 사이드바 HTML 재구성
-      sidebar.innerHTML = `
-        <div class="sidebar-section">🎫 대기 순번 등록</div>
-        <div class="input-group">
-          <input type="text" id="queueInput" value="${queueInputVal}" oninput="queueInputVal = this.value" placeholder="이름 입력">
-          <button class="btn btn-primary" onclick="joinQueue()">등록</button>
-        </div>
-        <div id="queueList"></div>
-      `;
+  // 초기 실행
+  fetchData();
+  supabase.channel('public').on('postgres_changes', { event: '*', schema: 'public' }, fetchData).subscribe();
+</script>
 
-      // 3. 목록 부분 갱신
-      document.getElementById('queueList').innerHTML = state.queue.map(q => `
-        <div>${q.num}번 ${q.name}</div>
-      `).join('');
-    }
-
-    // 관리자 데이터 보호 로직
-    function clickSlot(key) {
-      const booking = state.bookings[key];
-      
-      // 관리자 데이터는 삭제 차단
-      if (booking && booking.num === 'admin') {
-        alert('🔒 이 슬롯은 관리자에 의해 잠금/고정된 항목입니다.');
-        return;
-      }
-      
-      // 예약 프로세스 진행
-    }
-
-    async function joinQueue() {
-      if (!queueInputVal) return alert('이름을 입력하세요');
-      await supabase.from('queue').insert([{ name: queueInputVal, done: false }]);
-      queueInputVal = ""; // 등록 후 초기화
-      sync();
-    }
-
-    // [중요] 1초마다 렌더링하는 setInterval은 사용하지 않습니다.
-    // 데이터 변경 시에만 sync()가 호출되도록 설정
-    supabase.channel('db').on('postgres_changes', { event: '*', schema: 'public' }, sync).subscribe();
-    sync();
-  </script>
 </body>
 </html>
