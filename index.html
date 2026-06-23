@@ -43,9 +43,10 @@
     .sidebar { width: 180px; border-right: 0.5px solid var(--border-primary); padding: 10px; overflow-y: auto; background: var(--bg-primary); }
     .sidebar-section { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin: 10px 0 6px 0; }
     
-    .input-group { display: flex; gap: 5px; margin-top: 5px; }
-    .input-group input { flex: 1; padding: 6px 8px; border: 1.5px solid #1976d2; border-radius: 4px; font-size: 12px; font-weight: 500; outline: none; }
-    .btn-submit-queue { padding: 6px 12px; background: #1976d2; color: #ffffff; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+    /* 대기 등록 레이아웃 및 확인 버튼 스타일 고정 */
+    .input-group { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
+    .input-group input { flex: 1; padding: 6px 8px; border: 1.5px solid #1976d2; border-radius: 4px; font-size: 12px; font-weight: 500; outline: none; min-width: 0; }
+    .btn-submit-queue { padding: 6px 12px; background: #1976d2; color: #ffffff; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; white-space: nowrap; flex-shrink: 0; }
     .btn-submit-queue:hover { background: #115293; }
     
     .main { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
@@ -74,7 +75,6 @@
     .admin-badge { background: var(--bg-danger); color: var(--text-danger); padding: 6px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-align: center; }
     .my-badge { background: var(--bg-success); color: var(--text-success); padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
     
-    /* 대기 명단 아이템 스타일 정의 */
     .queue-item { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 7px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; margin-bottom: 3px; }
     .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
     .queue-info-text { flex: 1; display: flex; gap: 4px; align-items: center; }
@@ -360,7 +360,6 @@
       } catch (err) { showToast('순번 등록 실패'); }
     }
 
-    // [신규 기능] 관리자 대기 순번 개별 영구 취소/삭제 로직
     async function deleteQueueItem(num, name) {
       if (!confirm(`⚠️ [${num}번 ${name}] 대기자를 목록에서 강제 제외하시겠습니까?`)) return;
       try {
@@ -600,7 +599,6 @@
       
       const sidebar = document.getElementById('sidebarContent');
       if (isAdmin) {
-        // [수정 핵심] 관리자 모드인 경우 대기 목록 패널 내에 강제 개별 삭제 '×' 연동
         let adminSidebarHtml = `
           <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
           
@@ -638,6 +636,7 @@
 
         sidebar.innerHTML = adminSidebarHtml;
       } else {
+        // [버튼 버그 수정] 일반 예약자 렌더링 화면에 input-group과 btn-submit-queue 구조를 정상 적용하여 고쳤습니다.
         if (myNum !== null) {
           sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`;
         } else {
