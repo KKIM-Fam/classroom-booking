@@ -772,6 +772,9 @@
       
       document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
       
+      // 순번제 모드 이름 입력칸 값 보존 (1초 render 재빌드 시 입력값 소실 방지)
+      const prevQueueInput = document.getElementById('queueInput')?.value ?? '';
+
       const sidebar = document.getElementById('sidebarContent');
       if (isAdmin) {
         let adminSidebarHtml = `
@@ -820,6 +823,11 @@
           state.queue.forEach(q => { qHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`; });
           sidebar.innerHTML += qHtml;
         }
+      }
+      // 이름 입력칸이 다시 렌더됐을 때 기존 입력값 복원
+      const restoredQueueInput = document.getElementById('queueInput');
+      if (restoredQueueInput && prevQueueInput) {
+        restoredQueueInput.value = prevQueueInput;
       }
       
       let tableHtml = '<thead><tr><th class="time-header">시간</th>';
