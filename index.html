@@ -264,6 +264,7 @@
     let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '0000', isQueueMode: false };
     let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false;
     let weekOffset = 0, sidebarOpen = true, pendingBooking = null, pendingAdminBooking = null;
+    let prevMode = null; // 순번제 모드 전환 감지용
     
     const formatDate = (d) => d.toISOString().split('T')[0];
     const getWeekDates = (offset = 0) => {
@@ -332,7 +333,17 @@
         .on('postgres_changes', { event: '*', schema: 'public' }, () => { syncFromSupabase(); })
         .subscribe();
 
-      setInterval(() => { render(); }, 1000);
+      setInterval(async () => {
+        const currentMode = getMode();
+        // 자동 순번제 종료 감지 (queue → free 전환 시 대기목록 초기화)
+        if (prevMode === 'queue' && currentMode === 'free' && !state.isQueueMode) {
+          await clearQueueData();
+          showToast('⏰ 순번제 시간 종료 — 대기목록이 초기화되었습니다.');
+          await syncFromSupabase();
+        }
+        prevMode = currentMode;
+        render();
+      }, 1000);
     }
     
     function showToast(msg) {
@@ -358,12 +369,30 @@
       } else { showToast('비밀번호가 일치하지 않습니다.'); }
     }
 
+    // 대기 목록 전체 초기화 (순번제 종료 시 호출)
+    async function clearQueueData() {
+      try {
+        await supabaseClient.from('queue').delete().neq('num', -1); // 전체 삭제
+        state.queue = [];
+        state.currentTurn = null;
+        myNum = null; myName = '';
+        localStorage.removeItem('myNum');
+        localStorage.removeItem('myName');
+      } catch (err) { console.error('대기목록 초기화 실패:', err); }
+    }
+
     async function toggleQueueMode(chk) {
       try {
         const isChecked = chk.checked;
         await supabaseClient.from('settings').upsert({ id: 1, isQueueMode: isChecked });
         state.isQueueMode = isChecked;
-        showToast(isChecked ? '📋 수동 강제 순번제가 활성화되었습니다.' : '🔓 자율 모드로 복귀 (자동스케줄러 반영)');
+        if (!isChecked) {
+          // 강제 순번제 OFF → 대기목록 자동 초기화
+          await clearQueueData();
+          showToast('🔓 자율 모드 전환 — 대기목록이 초기화되었습니다.');
+        } else {
+          showToast('📋 수동 강제 순번제가 활성화되었습니다.');
+        }
         await syncFromSupabase();
       } catch (err) { showToast('모드 변경 저장 실패'); }
     }
