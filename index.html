@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>강의실 예약 시스템 (스마트 순번제 모드)</title>
+  <title>강의실 예약 시스템 (스마트 다중 제어 모드)</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -61,7 +61,12 @@
     td { border: 0.5px solid var(--border-primary); height: 26px; text-align: center; cursor: pointer; transition: opacity 0.1s; font-size: 9px; position: relative; }
     td:hover { opacity: 0.8; }
     td.time-label { background: var(--bg-secondary); color: var(--text-secondary); cursor: default; padding: 0 4px; font-weight: 600; font-size: 10px; width: 50px; }
-    .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); }
+    
+    /* 하단 푸터 영역 스타일 확장 */
+    .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); flex-wrap: wrap; }
+    .footer-admin-inputs { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 280px; }
+    .footer-admin-inputs input { padding: 4px 6px; font-size: 11px; border: 0.5px solid var(--border-primary); border-radius: 4px; width: 110px; }
+
     .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: none; align-items: flex-start; justify-content: center; z-index: 100; padding-top: 80px; overflow-y: auto; }
     .modal.active { display: flex; }
     .modal-content { background: var(--bg-primary); border-radius: 8px; border: 0.5px solid var(--border-primary); padding: 16px; width: 300px; max-width: 90%; margin-bottom: 40px; }
@@ -89,6 +94,10 @@
     .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .2s; border-radius: 50%; }
     input:checked + .slider { background-color: #f57c00; }
     input:checked + .slider:before { transform: translateX(14px); }
+    
+    /* 다중 선택 슬롯 스타일 효과 */
+    .selected-admin-overlay { box-shadow: inset 0 0 0 2px #ff1744 !important; background-color: rgba(255, 23, 68, 0.15) !important; }
+    .selected-user-overlay { box-shadow: inset 0 0 0 2px #2979ff !important; background-color: rgba(41, 121, 255, 0.15) !important; }
   </style>
 </head>
 <body>
@@ -124,9 +133,17 @@
     </div>
     
     <div class="footer" id="footer" style="display: none;">
-      <div id="footerText" style="flex: 1; font-size: 12px;"></div>
-      <button class="btn" onclick="clearSelection()">취소</button>
-      <button class="btn btn-primary" id="submitBtn" onclick="submitBooking()" disabled>선택 예약 확정</button>
+      <div id="footerText" style="font-size: 12px; font-weight: bold; margin-right: 10px; min-width: 100px;"></div>
+      
+      <div class="footer-admin-inputs" id="adminBatchFields" style="display: none;">
+        <input type="text" id="batchAdminName" placeholder="예약자명 (기본: 관리자)">
+        <input type="text" id="batchAdminMemo" placeholder="메모 내용 입력">
+        <button class="btn btn-primary" style="background:#2979ff; color:#fff;" onclick="executeAdminBatchInsert()">⚡ 선택 슬롯 일괄 등록/잠금</button>
+        <button class="btn btn-danger" onclick="executeAdminBatchDelete()">🗑️ 선택 슬롯 일괄 삭제</button>
+      </div>
+
+      <button class="btn btn-primary" id="submitBtn" onclick="submitBooking()" style="display: none;">선택 예약 확정</button>
+      <button class="btn" onclick="clearSelection()">선택 취소</button>
     </div>
   </div>
 
@@ -162,24 +179,15 @@
     <div class="modal-content">
       <div class="modal-title" id="controlModalTitle">상세 정보 및 제어</div>
       <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;" id="adminBookInfo"></div>
-      
-      <div id="adminInputZone">
-        <label class="modal-label">예약자명</label>
-        <input type="text" class="modal-input" id="adminBookName">
-        <label class="modal-label">메모</label>
-        <input type="text" class="modal-input" id="adminBookMemo">
-      </div>
 
-      <div style="margin-top:10px; display:none; background:var(--bg-secondary); padding:8px; border-radius:4px;" id="userDeleteZone">
+      <div style="background:var(--bg-secondary); padding:8px; border-radius:4px;" id="userDeleteZone">
         <p style="font-size:11px; color:var(--text-danger); margin-bottom:4px;">⚠️ 본인이 예약한 경우만 삭제 가능합니다.</p>
         <input type="text" class="modal-input" id="userDeleteNameInput" placeholder="예약자 이름을 정확히 입력하세요">
       </div>
 
       <div class="modal-buttons">
         <button class="btn" onclick="closeModal('adminBookModal')">닫기</button>
-        <button class="btn btn-danger" id="userDeleteBtn" style="display: none;" onclick="deleteUserBooking()">본인예약 취소</button>
-        <button class="btn btn-danger" id="deleteBtn" style="display: none;" onclick="deleteAdminBooking()">즉시 삭제</button>
-        <button class="btn btn-primary" id="saveBtn" onclick="saveAdminBooking()">등록/수정</button>
+        <button class="btn btn-danger" id="userDeleteBtn" onclick="deleteUserBooking()">본인예약 취소</button>
       </div>
     </div>
   </div>
@@ -338,14 +346,15 @@
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
     
     function showAdminLogin() {
-      if (isAdmin) { isAdmin = false; document.getElementById('adminBtn').textContent = '관리자'; render(); return; }
+      if (isAdmin) { isAdmin = false; document.getElementById('adminBtn').textContent = '관리자'; selectedSlots.clear(); render(); return; }
       openModal('adminModal');
     }
     
     function doAdminLogin() {
       if (document.getElementById('adminPassword').value === state.adminPassword) {
         isAdmin = true; closeModal('adminModal'); document.getElementById('adminBtn').textContent = '관리자✓';
-        showToast('✓ 관리자 권한 획득'); render();
+        selectedSlots.clear();
+        showToast('✓ 관리자 권한 획득 (다중 선택 활성화)'); render();
       } else { showToast('비밀번호가 일치하지 않습니다.'); }
     }
 
@@ -394,6 +403,7 @@
       } catch (err) { showToast('대기자 삭제 오류 발생'); }
     }
     
+    /* [핵심 기능 수정] 클릭 핸들러: 관리자 모드일 때 모달창을 띄우지 않고 다중 장바구니 선택이 되도록 분기 수정 */
     function clickSlot(weekIdx, roomIdx, timeIdx) {
       const dates = getWeekDates(weekOffset);
       const date = formatDate(dates[weekIdx]);
@@ -401,37 +411,26 @@
       const mode = getMode();
       const existing = state.bookings[key];
       
+      // 관리자 모드일 때는 무조건 다중 선택 목록에 추가/제거 하도록 설계 변경
       if (isAdmin) {
-        pendingAdminBooking = {date, roomIdx, timeIdx, key};
-        document.getElementById('controlModalTitle').textContent = "🛡️ 관리자 통제 제어";
-        document.getElementById('adminBookInfo').textContent = `${ROOMS[roomIdx]} — ${date} ${SLOTS[timeIdx]}`;
-        document.getElementById('adminBookName').value = existing?.name || '';
-        document.getElementById('adminBookMemo').value = existing?.memo || '';
-        document.getElementById('adminInputZone').style.display = 'block';
-        document.getElementById('userDeleteZone').style.display = 'none';
-        document.getElementById('userDeleteBtn').style.display = 'none';
-        document.getElementById('deleteBtn').style.display = existing ? 'block' : 'none';
-        document.getElementById('saveBtn').style.display = 'block';
-        openModal('adminBookModal');
+        selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
+        render();
         return;
       }
       
       if (existing && existing.name === ' [잠금] ') { showToast('학과 행정 또는 시험 기간 등으로 인해 잠긴 슬롯입니다.'); return; }
       
+      // 일반 사용자가 기존 예약을 누른 경우 (취소 요청 모달)
       if (existing) {
         pendingAdminBooking = {key};
         document.getElementById('controlModalTitle').textContent = "예약 취소 신청";
         document.getElementById('adminBookInfo').textContent = `${ROOMS[roomIdx]} — ${date} ${SLOTS[timeIdx]} (예약자: ${existing.name})`;
-        document.getElementById('adminInputZone').style.display = 'none';
-        document.getElementById('userDeleteZone').style.display = 'block';
-        document.getElementById('userDeleteBtn').style.display = 'block';
-        document.getElementById('deleteBtn').style.display = 'none';
-        document.getElementById('saveBtn').style.display = 'none';
         document.getElementById('userDeleteNameInput').value = '';
         openModal('adminBookModal');
         return;
       }
       
+      // 순번제 모드일 때 사용자 다중 선택
       if (mode === 'queue') {
         if (myNum === null) { showToast('대기 번호를 먼저 받아주세요.'); return; }
         if (state.currentTurn !== myNum) { showToast('아직 내 입력 차례가 아닙니다.'); return; }
@@ -439,12 +438,54 @@
         render(); return;
       }
       
+      // 일반 자율 모드 단건 등록
       pendingBooking = {date, roomIdx, timeIdx, key};
       document.getElementById('bookingRoom').textContent = ROOMS[roomIdx];
       document.getElementById('bookingTime').textContent = `${date} ${SLOTS[timeIdx]}`;
       document.getElementById('bookingName').value = '';
       document.getElementById('bookingMemo').value = '';
       openModal('bookingModal');
+    }
+
+    /* [기능 추가] 관리자 모드: 선택된 복수 슬롯 일괄 등록/잠금 실행 */
+    async function executeAdminBatchInsert() {
+      if (selectedSlots.size === 0) return;
+      const name = document.getElementById('batchAdminName').value.trim() || '관리자';
+      const memo = document.getElementById('batchAdminMemo').value.trim();
+      
+      if(!confirm(`선택한 ${selectedSlots.size}개의 슬롯에 [예약자: ${name}] 정보를 일괄 등록(덮어쓰기) 하시겠습니까?`)) return;
+      
+      const batch = [];
+      selectedSlots.forEach(key => {
+        batch.push({ key, name, memo, num: 'admin' });
+      });
+
+      try {
+        const { error } = await supabaseClient.from('bookings').upsert(batch);
+        if (error) throw error;
+        
+        showToast(`✓ ${selectedSlots.size}개 슬롯 일괄 등록 완료`);
+        selectedSlots.clear();
+        document.getElementById('batchAdminName').value = '';
+        document.getElementById('batchAdminMemo').value = '';
+        await syncFromSupabase();
+      } catch (err) { alert('일괄 등록 실패: ' + err.message); }
+    }
+
+    /* [기능 추가] 관리자 모드: 선택된 복수 슬롯 일괄 예약 내역 초기화(삭제) 실행 */
+    async function executeAdminBatchDelete() {
+      if (selectedSlots.size === 0) return;
+      if (!confirm(`⚠️ 선택한 ${selectedSlots.size}개 슬롯에 존재하는 모든 예약 내역을 '일괄 삭제' 처리하시겠습니까?`)) return;
+      
+      const keysToDelete = Array.from(selectedSlots);
+      try {
+        const { error } = await supabaseClient.from('bookings').delete().in('key', keysToDelete);
+        if (error) throw error;
+        
+        showToast(`✓ ${selectedSlots.size}개 슬롯 예약 내역 일괄 삭제 완료`);
+        selectedSlots.clear();
+        await syncFromSupabase();
+      } catch (err) { alert('일괄 삭제 실패: ' + err.message); }
     }
 
     async function deleteUserBooking() {
@@ -492,24 +533,6 @@
         closeModal('bookingModal');
         await syncFromSupabase();
       } catch (err) { showToast('저장 실패: ' + err.message); }
-    }
-    
-    async function saveAdminBooking() {
-      const name = document.getElementById('adminBookName').value.trim() || '관리자';
-      const memo = document.getElementById('adminBookMemo').value.trim();
-      try {
-        await supabaseClient.from('bookings').upsert([{ key: pendingAdminBooking.key, name, memo, num: 'admin' }]);
-        closeModal('adminBookModal');
-        await syncFromSupabase();
-      } catch (err) { showToast('처리 실패'); }
-    }
-    
-    async function deleteAdminBooking() {
-      try {
-        await supabaseClient.from('bookings').delete().eq('key', pendingAdminBooking.key);
-        closeModal('adminBookModal');
-        await syncFromSupabase();
-      } catch (err) { showToast('삭제 실패'); }
     }
     
     async function submitBooking() {
@@ -594,7 +617,6 @@
       showToast("✓ CSV 내역 파일 다운로드 성공");
     }
 
-    /* [기능 추가] 엑셀 시간표 업로드 양식 파일(CSV) 다운로드 함수 */
     function downloadExcelTemplate() {
       let csvContent = "\uFEFF";
       csvContent += "요일,강의실,시간,과목명(예약자명),메모\n";
@@ -611,7 +633,6 @@
       document.body.removeChild(link);
     }
 
-    /* [기능 추가] 업로드된 CSV 텍스트 파싱 및 날짜 주기 루프 삽입 처리 로직 */
     async function processExcelUpload() {
       const startInput = document.getElementById('excelStartDate').value;
       const endInput = document.getElementById('excelEndDate').value;
@@ -634,10 +655,9 @@
         if (lines.length <= 1) { alert("헤더 외에 입력된 데이터 행이 없습니다."); return; }
 
         const parsedRules = [];
-        // 1번째 줄(헤더) 제외하고 데이터 파싱
         for(let i=1; i<lines.length; i++) {
           const row = lines[i].split(',').map(cell => cell.replace(/^["']|["']$/g, '').trim());
-          if (row.length < 4) continue; // 필수 열 부족 시 패스
+          if (row.length < 4) continue;
 
           const dayStr = row[0];
           const roomStr = row[1];
@@ -658,51 +678,33 @@
 
         if (parsedRules.length === 0) { alert("유효한 시간표 데이터 규칙을 찾지 못했습니다. 요일/강의실명/시간 정보를 확인하세요."); return; }
 
-        // 주기적 날짜 계산 연산 처리 루프
         const finalBatch = [];
         let cursor = new Date(startDate);
 
         while(cursor <= endDate) {
-          const currentDayNum = cursor.getDay(); // 0:일 ~ 6:토
-          
-          // 현재 날짜의 요일과 일치하는 엑셀 규칙 규칙이 있는지 매핑
+          const currentDayNum = cursor.getDay();
           const matches = parsedRules.filter(r => r.dayNum === currentDayNum);
           
           matches.forEach(match => {
             const dateStr = formatDate(cursor);
             const key = slotKey(dateStr, match.roomIdx, match.timeIdx);
-            finalBatch.push({
-              key: key,
-              name: match.name,
-              memo: match.memo,
-              num: 'admin'
-            });
+            finalBatch.push({ key: key, name: match.name, memo: match.memo, num: 'admin' });
           });
-
-          cursor.setDate(cursor.getDate() + 1); // 하루 증가
+          cursor.setDate(cursor.getDate() + 1);
         }
 
-        if (finalBatch.length === 0) {
-          alert("설정하신 기간 내에 매칭되는 요일이 한 번도 존재하지 않습니다.");
-          return;
-        }
-
+        if (finalBatch.length === 0) { alert("설정하신 기간 내에 매칭되는 요일이 한 번도 존재하지 않습니다."); return; }
         if (!confirm(`확인: 총 ${finalBatch.length}개의 슬롯 예약 데이터가 해당 기간 전반에 일괄 분산 삽입됩니다. 진행하시겠습니까?`)) return;
 
         try {
-          // Supabase 대량 데이터 Upsert 실행
           const { error } = await supabaseClient.from('bookings').upsert(finalBatch);
           if (error) throw error;
-
           closeModal('excelUploadModal');
           fileInput.value = '';
           showToast(`🚀 고정 시간표 일괄 배포 완료! (${finalBatch.length}개 슬롯)`);
           await syncFromSupabase();
-        } catch(err) {
-          alert("Supabase 대량 삽입 실패: " + err.message);
-        }
+        } catch(err) { alert("Supabase 대량 삽입 실패: " + err.message); }
       };
-
       reader.readAsText(file, 'UTF-8');
     }
 
@@ -710,13 +712,10 @@
     async function executeClearAll() {
       const inputPw = document.getElementById('clearPasswordInput').value;
       if (inputPw !== state.adminPassword) { alert('관리자 비밀번호가 틀렸습니다. 초기화를 거부합니다.'); return; }
-      
       if (!confirm("진짜 실행합니까? 복구가 불가능한 영구 파괴 작업입니다.")) return;
-      
       try {
         await supabaseClient.from('bookings').delete().neq('key', 'default_never_delete_dummy');
         await supabaseClient.from('queue').delete().neq('num', -1);
-        
         closeModal('clearConfirmModal');
         document.getElementById('clearPasswordInput').value = '';
         showToast('🔥 시스템 초기화 및 데이터 전체 삭제 완료');
@@ -726,7 +725,7 @@
 
     function clearSelection() { selectedSlots.clear(); render(); }
     function toggleSidebar() { sidebarOpen = !sidebarOpen; document.getElementById('sidebar').style.display = sidebarOpen ? 'block' : 'none'; }
-    function changeWeek(d) { weekOffset += d; render(); }
+    function changeWeek(d) { weekOffset += d; selectedSlots.clear(); render(); }
 
     async function postNotice() {
       const txt = document.getElementById('noticeInput').value.trim();
@@ -751,10 +750,11 @@
       const banner = document.getElementById('banner');
       const badge = document.getElementById('badge');
       
-      if (mode === 'queue') {
-        badge.className = 'badge badge-queue';
-        badge.textContent = state.isQueueMode ? '📋 순번제 (관리자 강제)' : '⏰ 순번제 (월요 타이머)';
-        
+      if (isAdmin) {
+        badge.className = 'badge badge-locked'; badge.textContent = '🛡️ 관리자 모드';
+        banner.textContent = '여러 칸을 터치해 멀티 지정한 후, 하단 컨트롤 창에서 일괄 입력 또는 일괄 삭제가 가능합니다.';
+      } else if (mode === 'queue') {
+        badge.className = 'badge badge-queue'; badge.textContent = state.isQueueMode ? '📋 순번제 (관리자 강제)' : '⏰ 순번제 (월요 타이머)';
         if (state.currentTurn) {
           const q = state.queue.find(item => item.num === state.currentTurn);
           banner.textContent = `현재 순번 [${state.currentTurn}번 ${q ? q.name : ''}] 입력 진행 중...`;
@@ -776,7 +776,6 @@
       if (isAdmin) {
         let adminSidebarHtml = `
           <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
-          
           <div class="switch-container">
             <span class="switch-label">📋 강제 순번제 모드</span>
             <label class="switch">
@@ -784,23 +783,18 @@
               <span class="slider"></span>
             </label>
           </div>
-
           <button class="btn admin-menu-btn" style="background:#e3f2fd; color:#1565c0; font-weight:bold; margin-top:10px;" onclick="openModal('excelUploadModal')">📅 고정 시간표 엑셀 업로드</button>
           <button class="btn admin-menu-btn" style="background:transparent; border:0.5px dashed var(--border-tertiary); font-size:10px; color:var(--text-secondary); margin-top:2px;" onclick="downloadExcelTemplate()">📥 샘플 엑셀(CSV) 다운로드</button>
-
           <button class="btn admin-menu-btn" style="background:#fff3e0; color:#e65100; margin-top:10px;" onclick="lockEntireRoomDay()">🔒 강의실 하루 통째 잠금</button>
           <button class="btn admin-menu-btn" style="background:#e8f5e9; color:#1b5e20;" onclick="downloadCSVExport()">📊 전체 내역 엑셀 다운로드</button>
           <button class="btn admin-menu-btn" style="background:#ffebee; color:#b71c1c;" onclick="requestClearAll()">🔥 전체 데이터 초기화</button>
-          
           <hr style="margin:10px 0; border:none; border-top:0.5px solid var(--border-primary);">
           <textarea id="noticeInput" style="width:100%; font-size:11px; padding:4px;" placeholder="공지사항 내용 입력"></textarea>
           <button class="btn btn-primary" style="width:100%; margin-top:4px;" onclick="postNotice()">공지 배포</button>
           <button class="btn" style="width:100%; margin-top:10px;" onclick="openModal('adminSettingModal')">암호 변경</button>
-          
           <hr style="margin:15px 0; border:none; border-top:0.5px solid var(--border-primary);">
           <div class="sidebar-section">⚙️ 대기 제어/삭제 명단</div>
         `;
-
         if (state.queue.length > 0) {
           state.queue.forEach(q => {
             adminSidebarHtml += `
@@ -809,15 +803,11 @@
                 <button class="btn-queue-del" onclick="deleteQueueItem(${q.num}, '${q.name}')" title="강제 삭제">×</button>
               </div>`;
           });
-        } else {
-          adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`;
-        }
-
+        } else { adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`; }
         sidebar.innerHTML = adminSidebarHtml;
       } else {
-        if (myNum !== null) {
-          sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`;
-        } else {
+        if (myNum !== null) { sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`; }
+        else {
           sidebar.innerHTML = `
             <div class="sidebar-section">🎫 대기 순번 등록</div>
             <div class="input-group">
@@ -827,9 +817,7 @@
         }
         if (state.queue.length > 0) {
           let qHtml = `<div class="sidebar-section" style="margin-top:15px;">📋 실시간 대기 목록</div>`;
-          state.queue.forEach(q => {
-            qHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`;
-          });
+          state.queue.forEach(q => { qHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`; });
           sidebar.innerHTML += qHtml;
         }
       }
@@ -851,18 +839,22 @@
             
             let cellStyle = '';
             let cellText = '';
+            let cellClass = '';
             let clickEvt = `onclick="clickSlot(${di}, ${ri}, ${si})"`;
             
             if (booking) {
               const color = getColorByName(booking.name);
               cellStyle = `background-color: ${color.bg}; color: ${color.tc}; font-weight:bold;`;
               cellText = booking.name;
-            } else if (isSelected) {
-              cellStyle = 'background-color: #c8c2ff;';
-              cellText = '✓';
             }
             
-            tableHtml += `<td style="${cellStyle}" ${clickEvt}>${cellText}</td>`;
+            // 다중 선택 시 테두리 시각 보정 테두리 클래스 바인딩 (관리자는 빨간색, 유저는 파란색)
+            if (isSelected) {
+              cellClass = isAdmin ? 'selected-admin-overlay' : 'selected-user-overlay';
+              if(!booking) cellText = '✓';
+            }
+            
+            tableHtml += `<td class="${cellClass}" style="${cellStyle}" ${clickEvt}>${cellText}</td>`;
           });
         });
         tableHtml += '</tr>';
@@ -870,12 +862,24 @@
       tableHtml += '</tbody>';
       document.getElementById('table').innerHTML = tableHtml;
       
+      // 하단 푸터 바 렌더링 동적 핸들링
       const footer = document.getElementById('footer');
+      const submitBtn = document.getElementById('submitBtn');
+      const adminBatchFields = document.getElementById('adminBatchFields');
       const isMyTurn = myNum !== null && myNum === state.currentTurn && mode === 'queue';
-      if (isMyTurn || selectedSlots.size > 0) {
+      
+      if (selectedSlots.size > 0 || isMyTurn) {
         footer.style.display = 'flex';
-        document.getElementById('footerText').textContent = `선택된 예약 슬롯 수: ${selectedSlots.size}개`;
-        document.getElementById('submitBtn').disabled = selectedSlots.size === 0;
+        document.getElementById('footerText').textContent = `선택된 슬롯: ${selectedSlots.size}개`;
+        
+        if (isAdmin) {
+          adminBatchFields.style.display = 'flex';
+          submitBtn.style.display = 'none';
+        } else {
+          adminBatchFields.style.display = 'none';
+          submitBtn.style.display = 'block';
+          submitBtn.disabled = selectedSlots.size === 0;
+        }
       } else { footer.style.display = 'none'; }
     }
     
