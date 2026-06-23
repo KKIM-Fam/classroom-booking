@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>강의실 예약 시스템 (스마트 다중 제어 모드)</title>
+  <title>강의실 예약 시스템 (관리자 데이터 보호 버전)</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,7 +44,7 @@
     .sidebar-section { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin: 10px 0 6px 0; }
     
     .input-group { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
-    .input-group input { flex: 1; padding: 6px 8px; border: 1.5px solid #1976d2; border-radius: 4px; font-size: 12px; font-weight: 500; outline: none; min-width: 0; }
+    .input-group input { flex: 1; padding: 6px 8px; border: 1.5px solid #1976d2; border-radius: 4px; font-size: 12px; font-weight: 500; outline: none; min-width: 0; background: #ffffff !important; color: #000000 !important; }
     .btn-submit-queue { padding: 6px 12px; background: #1976d2; color: #ffffff; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; white-space: nowrap; flex-shrink: 0; }
     .btn-submit-queue:hover { background: #115293; }
     
@@ -62,7 +62,6 @@
     td:hover { opacity: 0.8; }
     td.time-label { background: var(--bg-secondary); color: var(--text-secondary); cursor: default; padding: 0 4px; font-weight: 600; font-size: 10px; width: 50px; }
     
-    /* 하단 푸터 영역 스타일 확장 */
     .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); flex-wrap: wrap; }
     .footer-admin-inputs { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 280px; }
     .footer-admin-inputs input { padding: 4px 6px; font-size: 11px; border: 0.5px solid var(--border-primary); border-radius: 4px; width: 110px; }
@@ -77,7 +76,8 @@
     .toast { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: var(--bg-primary); border: 0.5px solid var(--border-primary); border-radius: 6px; padding: 8px 16px; font-size: 12px; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
     .toast.show { opacity: 1; }
     .admin-badge { background: var(--bg-danger); color: var(--text-danger); padding: 6px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-align: center; }
-    .my-badge { background: var(--bg-success); color: var(--text-success); padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+    .my-badge { background: var(--bg-success); color: var(--text-success); padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-weight: bold; justify-content: space-between; }
+    .btn-release-queue { background: rgba(255,255,255,0.3); border: 0.5px solid var(--text-success); color: var(--text-success); padding: 2px 4px; font-size: 10px; border-radius: 3px; cursor: pointer; }
     
     .queue-item { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 7px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; margin-bottom: 3px; }
     .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
@@ -95,7 +95,6 @@
     input:checked + .slider { background-color: #f57c00; }
     input:checked + .slider:before { transform: translateX(14px); }
     
-    /* 다중 선택 슬롯 스타일 효과 */
     .selected-admin-overlay { box-shadow: inset 0 0 0 2px #ff1744 !important; background-color: rgba(255, 23, 68, 0.15) !important; }
     .selected-user-overlay { box-shadow: inset 0 0 0 2px #2979ff !important; background-color: rgba(41, 121, 255, 0.15) !important; }
   </style>
@@ -363,7 +362,7 @@
         const isChecked = chk.checked;
         await supabaseClient.from('settings').upsert({ id: 1, isQueueMode: isChecked });
         state.isQueueMode = isChecked;
-        showToast(isChecked ? '📋 수동 강제 순번제가 활성화되었습니다.' : '🔓 자율 모드로 복귀 (자동스케줄러 반영)');
+        showToast(isChecked ? '📋 수동 강제 순번제가 활성화되었습니다.' : '🔓 자율 모드로 복귀 완료');
         await syncFromSupabase();
       } catch (err) { showToast('모드 변경 저장 실패'); }
     }
@@ -380,7 +379,8 @@
     }
     
     async function joinQueue() {
-      const name = document.getElementById('queueInput')?.value?.trim();
+      const inputEl = document.getElementById('queueInput');
+      const name = inputEl?.value?.trim();
       if (!name) { showToast('이름을 입력하세요.'); return; }
       
       const nextNum = state.queue.length > 0 ? Math.max(...state.queue.map(q => q.num)) + 1 : 1;
@@ -394,6 +394,15 @@
       } catch (err) { showToast('순번 등록 실패'); }
     }
 
+    function releaseMyQueue() {
+      if (!confirm("발급받은 대기 순번을 포기하고 초기화하시겠습니까?")) return;
+      myNum = null; myName = '';
+      localStorage.removeItem('myNum'); localStorage.removeItem('myName');
+      selectedSlots.clear();
+      render();
+      showToast("내 순번이 초기화되었습니다.");
+    }
+
     async function deleteQueueItem(num, name) {
       if (!confirm(`⚠️ [${num}번 ${name}] 대기자를 목록에서 강제 제외하시겠습니까?`)) return;
       try {
@@ -403,7 +412,7 @@
       } catch (err) { showToast('대기자 삭제 오류 발생'); }
     }
     
-    /* [핵심 기능 수정] 클릭 핸들러: 관리자 모드일 때 모달창을 띄우지 않고 다중 장바구니 선택이 되도록 분기 수정 */
+    // [수정] 일반 사용자의 관리자 예약 데이터 임의 삭제 시도 원천 방어
     function clickSlot(weekIdx, roomIdx, timeIdx) {
       const dates = getWeekDates(weekOffset);
       const date = formatDate(dates[weekIdx]);
@@ -411,17 +420,19 @@
       const mode = getMode();
       const existing = state.bookings[key];
       
-      // 관리자 모드일 때는 무조건 다중 선택 목록에 추가/제거 하도록 설계 변경
       if (isAdmin) {
         selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
         render();
         return;
       }
       
-      if (existing && existing.name === ' [잠금] ') { showToast('학과 행정 또는 시험 기간 등으로 인해 잠긴 슬롯입니다.'); return; }
-      
-      // 일반 사용자가 기존 예약을 누른 경우 (취소 요청 모달)
       if (existing) {
+        // 예약 정보 구분자가 'admin'이거나 명칭이 '[잠금]' 구조인 경우 일반 사용자는 절대 삭제 신청 불가
+        if (existing.num === 'admin' || existing.name === ' [잠금] ') { 
+          showToast('🔒 학과 관리자 권한으로 고정된 항목입니다. 변경할 수 없습니다.'); 
+          return; 
+        }
+        
         pendingAdminBooking = {key};
         document.getElementById('controlModalTitle').textContent = "예약 취소 신청";
         document.getElementById('adminBookInfo').textContent = `${ROOMS[roomIdx]} — ${date} ${SLOTS[timeIdx]} (예약자: ${existing.name})`;
@@ -430,15 +441,13 @@
         return;
       }
       
-      // 순번제 모드일 때 사용자 다중 선택
       if (mode === 'queue') {
-        if (myNum === null) { showToast('대기 번호를 먼저 받아주세요.'); return; }
-        if (state.currentTurn !== myNum) { showToast('아직 내 입력 차례가 아닙니다.'); return; }
+        if (myNum === null) { showToast('오른쪽 대기 순번 등록창에 이름을 적고 번호를 먼저 받아주세요.'); return; }
+        if (state.currentTurn !== myNum) { showToast(`아직 내 입력 차례가 아닙니다. 현재 [${state.currentTurn}번] 차례입니다.`); return; }
         selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
         render(); return;
       }
       
-      // 일반 자율 모드 단건 등록
       pendingBooking = {date, roomIdx, timeIdx, key};
       document.getElementById('bookingRoom').textContent = ROOMS[roomIdx];
       document.getElementById('bookingTime').textContent = `${date} ${SLOTS[timeIdx]}`;
@@ -447,7 +456,6 @@
       openModal('bookingModal');
     }
 
-    /* [기능 추가] 관리자 모드: 선택된 복수 슬롯 일괄 등록/잠금 실행 */
     async function executeAdminBatchInsert() {
       if (selectedSlots.size === 0) return;
       const name = document.getElementById('batchAdminName').value.trim() || '관리자';
@@ -472,7 +480,6 @@
       } catch (err) { alert('일괄 등록 실패: ' + err.message); }
     }
 
-    /* [기능 추가] 관리자 모드: 선택된 복수 슬롯 일괄 예약 내역 초기화(삭제) 실행 */
     async function executeAdminBatchDelete() {
       if (selectedSlots.size === 0) return;
       if (!confirm(`⚠️ 선택한 ${selectedSlots.size}개 슬롯에 존재하는 모든 예약 내역을 '일괄 삭제' 처리하시겠습니까?`)) return;
@@ -488,6 +495,7 @@
       } catch (err) { alert('일괄 삭제 실패: ' + err.message); }
     }
 
+    // [수정] 일반 사용자 취소 기능 내부에서 관리자 데이터 여부 2차 크로스 체크
     async function deleteUserBooking() {
       const inputName = document.getElementById('userDeleteNameInput').value.trim();
       const targetKey = pendingAdminBooking.key;
@@ -495,6 +503,13 @@
       
       if (!inputName) { showToast('이름을 입력해 주세요.'); return; }
       if (targetBooking.name !== inputName) { showToast('예약자 이름 정보가 일치하지 않습니다.'); return; }
+      
+      // 관리자 식별자(admin) 데이터일 경우 백엔드 통신 전 한 번 더 차단
+      if (targetBooking.num === 'admin') {
+        showToast('🚫 거부됨: 관리자가 기입한 일정은 직접 삭제할 수 없습니다.');
+        closeModal('adminBookModal');
+        return;
+      }
       
       try {
         await supabaseClient.from('bookings').delete().eq('key', targetKey);
@@ -806,7 +821,13 @@
         } else { adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`; }
         sidebar.innerHTML = adminSidebarHtml;
       } else {
-        if (myNum !== null) { sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`; }
+        if (myNum !== null) { 
+          sidebar.innerHTML = `
+            <div class="my-badge">
+              <span>내 순번: ${myNum}번 (${myName})</span>
+              <button class="btn-release-queue" onclick="releaseMyQueue()">포기</button>
+            </div>`; 
+        }
         else {
           sidebar.innerHTML = `
             <div class="sidebar-section">🎫 대기 순번 등록</div>
@@ -848,7 +869,6 @@
               cellText = booking.name;
             }
             
-            // 다중 선택 시 테두리 시각 보정 테두리 클래스 바인딩 (관리자는 빨간색, 유저는 파란색)
             if (isSelected) {
               cellClass = isAdmin ? 'selected-admin-overlay' : 'selected-user-overlay';
               if(!booking) cellText = '✓';
@@ -862,7 +882,6 @@
       tableHtml += '</tbody>';
       document.getElementById('table').innerHTML = tableHtml;
       
-      // 하단 푸터 바 렌더링 동적 핸들링
       const footer = document.getElementById('footer');
       const submitBtn = document.getElementById('submitBtn');
       const adminBatchFields = document.getElementById('adminBatchFields');
@@ -883,7 +902,11 @@
       } else { footer.style.display = 'none'; }
     }
     
-    window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.classList.remove('active'); });
+    window.addEventListener('click', (e) => { 
+      if (e.target.classList.contains('modal')) {
+        e.target.classList.remove('active'); 
+      }
+    });
     initSystem();
   </script>
 </body>
