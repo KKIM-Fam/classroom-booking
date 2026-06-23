@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>강의실 예약 시스템 (관리자 기능 고도화)</title>
+  <title>강의실 예약 시스템 (순번제 수동 ON/OFF)</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,7 +33,7 @@
     .banner { flex: 1; min-width: 100px; text-align: center; font-size: 11px; border-radius: 4px; padding: 5px 8px; background: var(--bg-secondary); color: var(--text-secondary); }
     .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
     .badge-locked { background: var(--bg-danger); color: var(--text-danger); }
-    .badge-queue { background: var(--bg-warning); color: var(--text-warning); }
+    .badge-queue { background: var(--bg-warning); color: var(--text-warning); font-weight: bold; }
     .badge-free { background: var(--bg-success); color: var(--text-success); }
     .notice-section { max-height: 120px; overflow-y: auto; background: var(--bg-warning); color: var(--text-warning); font-size: 12px; border-bottom: 0.5px solid var(--border-primary); padding: 8px; }
     .notice-item { background: rgba(255,255,255,0.1); padding: 6px 8px; border-radius: 3px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -57,7 +57,6 @@
     td { border: 0.5px solid var(--border-primary); height: 26px; text-align: center; cursor: pointer; transition: opacity 0.1s; font-size: 9px; position: relative; }
     td:hover { opacity: 0.8; }
     td.time-label { background: var(--bg-secondary); color: var(--text-secondary); cursor: default; padding: 0 4px; font-weight: 600; font-size: 10px; width: 50px; }
-    td.blackout { background: #555555 !important; color: #ffffff !important; font-weight: bold; cursor: not-allowed; }
     .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); }
     .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: none; align-items: flex-start; justify-content: center; z-index: 100; padding-top: 80px; overflow-y: auto; }
     .modal.active { display: flex; }
@@ -73,6 +72,16 @@
     .queue-item { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; }
     .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
     .admin-menu-btn { width: 100%; margin-top: 6px; text-align: left; padding: 6px 8px; font-size: 11px; }
+    
+    /* 토글 스위치 디자인 스타일 */
+    .switch-container { display: flex; align-items: center; justify-content: space-between; background: #fffde7; padding: 8px; border-radius: 4px; border: 0.5px solid #fff59d; margin-top: 6px; }
+    .switch-label { font-size: 11px; font-weight: bold; color: #f57f17; }
+    .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background-color: #ccc; transition: .2s; border-radius: 20px; }
+    .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .2s; border-radius: 50%; }
+    input:checked + .slider { background-color: #f57c00; }
+    input:checked + .slider:before { transform: translateX(14px); }
   </style>
 </head>
 <body>
@@ -99,10 +108,6 @@
           <button class="btn" onclick="changeWeek(-1)">◀</button>
           <span id="weekLabel" style="min-width: 80px; text-align: center;"></span>
           <button class="btn" onclick="changeWeek(1)">▶</button>
-          <span style="flex: 1;"></span>
-          <label style="font-size: 10px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-            <input type="checkbox" id="testMode" onchange="toggleTestMode()"> 테스트 모드
-          </label>
         </div>
         
         <div class="table-wrapper">
@@ -215,8 +220,8 @@
       {bg: '#F4C0D1', tc: '#72243E'}, {bg: '#D3D1C7', tc: '#2C2C2A'},
     ];
     
-    let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '0000' };
-    let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false, testMode = false;
+    let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '0000', isQueueMode: false };
+    let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false;
     let weekOffset = 0, sidebarOpen = true, pendingBooking = null, pendingAdminBooking = null;
     
     const formatDate = (d) => d.toISOString().split('T')[0];
@@ -227,18 +232,9 @@
       return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
     };
     
+    // 이제 시간 기반이 아닌, 클라우드 DB의 isQueueMode 스위치 값을 기준으로 모드를 결정합니다.
     function getMode() {
-      if (testMode) return 'free';
-      const now = new Date();
-      if (now.getDay() === 1) { if (now.getHours() < 9) return 'locked'; if (now.getHours() === 9) return 'queue'; }
-      return 'free';
-    }
-    
-    function formatCountdown(ms) {
-      const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
-      if (d > 0) return `${d}일 ${h % 24}시간 ${m % 60}분`;
-      if (h > 0) return `${h}시간 ${m % 60}분`;
-      return `${m}분 ${s % 60}초`;
+      return state.isQueueMode ? 'queue' : 'free';
     }
     
     const slotKey = (date, roomIdx, timeIdx) => `${date}_${roomIdx}_${timeIdx}`;
@@ -272,7 +268,11 @@
         }
 
         const { data: settingsData } = await supabaseClient.from('settings').select('*').single();
-        if (settingsData && settingsData.adminPassword) state.adminPassword = settingsData.adminPassword;
+        if (settingsData) {
+          if (settingsData.adminPassword) state.adminPassword = settingsData.adminPassword;
+          // 클라우드에 저장된 순번제 스위치 값 로드
+          state.isQueueMode = settingsData.isQueueMode || false;
+        }
 
         render();
       } catch (err) { console.error('클라우드 동기화 실패:', err); }
@@ -289,8 +289,6 @@
       supabaseClient.channel('schema-db-changes')
         .on('postgres_changes', { event: '*', schema: 'public' }, () => { syncFromSupabase(); })
         .subscribe();
-        
-      setInterval(() => { if (getMode() === 'locked') render(); }, 1000);
     }
     
     function showToast(msg) {
@@ -313,6 +311,19 @@
         isAdmin = true; closeModal('adminModal'); document.getElementById('adminBtn').textContent = '관리자✓';
         showToast('✓ 관리자 권한 획득'); render();
       } else { showToast('비밀번호가 일치하지 않습니다.'); }
+    }
+
+    // [핵심 변경] 관리자가 순번제를 실시간으로 ON/OFF 조절하는 함수
+    async function toggleQueueMode(chk) {
+      try {
+        const isChecked = chk.checked;
+        await supabaseClient.from('settings').upsert({ id: 1, isQueueMode: isChecked });
+        state.isQueueMode = isChecked;
+        showToast(isChecked ? '📋 순번제 모드가 켜졌습니다.' : '🔓 자율 예약 모드로 전환되었습니다.');
+        await syncFromSupabase();
+      } catch (err) {
+        showToast('모드 변경 저장 실패');
+      }
     }
     
     async function saveAdminPassword() {
@@ -348,7 +359,6 @@
       const mode = getMode();
       const existing = state.bookings[key];
       
-      // 1. 관리자 모드인 경우 제어 모달 오픈
       if (isAdmin) {
         pendingAdminBooking = {date, roomIdx, timeIdx, key};
         document.getElementById('controlModalTitle').textContent = "🛡️ 관리자 통제 제어";
@@ -364,12 +374,10 @@
         return;
       }
       
-      // 잠금 슬롯 터치 시 예외 처리
       if (existing && existing.name === ' [잠금] ') { showToast('학과 행정 또는 시험 기간 등으로 인해 잠긴 슬롯입니다.'); return; }
       
-      // 2. 일반 사용자인데 기존 예약이 있는 경우 -> 본인 확인 후 삭제 유도 모달 오픈
       if (existing) {
-        pendingAdminBooking = {key}; // 유저 삭제용 타겟 지정
+        pendingAdminBooking = {key};
         document.getElementById('controlModalTitle').textContent = "예약 취소 신청";
         document.getElementById('adminBookInfo').textContent = `${ROOMS[roomIdx]} — ${date} ${SLOTS[timeIdx]} (예약자: ${existing.name})`;
         document.getElementById('adminInputZone').style.display = 'none';
@@ -382,8 +390,6 @@
         return;
       }
       
-      // 3. 일반 사용자 빈 슬롯 클릭 시 예약 처리 로직
-      if (mode === 'locked') { showToast('현재 예약이 비활성화 상태입니다.'); return; }
       if (mode === 'queue') {
         if (myNum === null) { showToast('대기 번호를 먼저 받아주세요.'); return; }
         if (state.currentTurn !== myNum) { showToast('아직 내 입력 차례가 아닙니다.'); return; }
@@ -399,7 +405,6 @@
       openModal('bookingModal');
     }
 
-    // 일반 사용자가 이름 매칭하여 직접 예약을 취소하는 기능
     async function deleteUserBooking() {
       const inputName = document.getElementById('userDeleteNameInput').value.trim();
       const targetKey = pendingAdminBooking.key;
@@ -459,7 +464,6 @@
       } catch (err) { showToast('확정 실패: ' + err.message); }
     }
 
-    // [추가 기능 1] 특정 강의실/날짜 통째로 잠금(블랙아웃) 처리
     async function lockEntireRoomDay() {
       const targetRoomStr = prompt(`잠금(락)을 설정할 강의실 번호를 선택하세요.\n(0:120호, 1:128호, 2:129호, 3:219호, 4:229호)`);
       if (targetRoomStr === null || targetRoomStr === "") return;
@@ -483,16 +487,15 @@
       } catch (err) { showToast('잠금 처리 실패'); }
     }
 
-    // [추가 기능 2] 예약 내역 CSV 엑셀 파일 다운로드 추출
     function downloadCSVExport() {
       if (Object.keys(state.bookings).length === 0) { alert("추출할 예약 데이터 내역이 존재하지 않습니다."); return; }
       
-      let csvContent = "\uFEFF"; // 한글 깨짐 방지 BOM 추가
+      let csvContent = "\uFEFF";
       csvContent += "날짜,강의실,시간,예약자명,메모,구분\n";
       
       Object.keys(state.bookings).forEach(key => {
         const item = state.bookings[key];
-        const split = key.split('_'); // [date, roomIdx, timeIdx]
+        const split = key.split('_');
         if (split.length === 3) {
           const date = split[0];
           const room = ROOMS[parseInt(split[1])];
@@ -511,7 +514,6 @@
       showToast("✓ CSV 내역 파일 다운로드 성공");
     }
 
-    // [추가 기능 3] 전체 초기화 경고창 기동
     function requestClearAll() { openModal('clearConfirmModal'); }
     async function executeClearAll() {
       const inputPw = document.getElementById('clearPasswordInput').value;
@@ -520,7 +522,6 @@
       if (!confirm("진짜 실행합니까? 복구가 불가능한 영구 파괴 작업입니다.")) return;
       
       try {
-        // RLS 해제 상태이므로 클라이언트단에서 전체 데이터 강제 삭제 쿼리 시도
         await supabaseClient.from('bookings').delete().neq('key', 'default_never_delete_dummy');
         await supabaseClient.from('queue').delete().neq('num', -1);
         
@@ -534,7 +535,6 @@
     function clearSelection() { selectedSlots.clear(); render(); }
     function toggleSidebar() { sidebarOpen = !sidebarOpen; document.getElementById('sidebar').style.display = sidebarOpen ? 'block' : 'none'; }
     function changeWeek(d) { weekOffset += d; render(); }
-    function toggleTestMode() { testMode = document.getElementById('testMode').checked; render(); }
 
     async function postNotice() {
       const txt = document.getElementById('noticeInput').value.trim();
@@ -559,17 +559,12 @@
       const banner = document.getElementById('banner');
       const badge = document.getElementById('badge');
       
-      if (mode === 'locked') {
-        badge.className = 'badge badge-locked'; badge.textContent = '🔒 잠김';
-        const now = new Date(); const unlock = new Date(now);
-        unlock.setDate(now.getDate() + (8 - now.getDay()) % 7); unlock.setHours(9, 0, 0, 0);
-        banner.textContent = `오픈까지 대기시간: ${formatCountdown(unlock - now)}`;
-      } else if (mode === 'queue') {
-        badge.className = 'badge badge-queue'; badge.textContent = '📋 순번제 입력';
+      if (mode === 'queue') {
+        badge.className = 'badge badge-queue'; badge.textContent = '📋 순번제 모드';
         if (state.currentTurn) {
           const q = state.queue.find(item => item.num === state.currentTurn);
           banner.textContent = `현재 순번 [${state.currentTurn}번 ${q ? q.name : ''}] 입력 진행 중...`;
-        } else { banner.textContent = '대기 번호가 없습니다.'; }
+        } else { banner.textContent = '대기 번호 목록이 비어있습니다.'; }
       } else {
         badge.className = 'badge badge-free'; badge.textContent = '🔓 자율 예약';
         banner.textContent = '빈 칸을 터치하여 예약하거나, 등록한 예약을 클릭해 취소할 수 있습니다.';
@@ -585,9 +580,19 @@
       
       const sidebar = document.getElementById('sidebarContent');
       if (isAdmin) {
+        // 관리자용 UI 단에 순번제 작동 스위치(Toggle Switch) 바인딩 추가
         sidebar.innerHTML = `
           <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
-          <button class="btn admin-menu-btn" style="background:#fff3e0; color:#e65100;" onclick="lockEntireRoomDay()">🔒 강의실 하루 통째 잠금</button>
+          
+          <div class="switch-container">
+            <span class="switch-label">📋 강제 순번제 모드</span>
+            <label class="switch">
+              <input type="checkbox" id="queueModeToggle" onchange="toggleQueueMode(this)" ${state.isQueueMode ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <button class="btn admin-menu-btn" style="background:#fff3e0; color:#e65100; margin-top:10px;" onclick="lockEntireRoomDay()">🔒 강의실 하루 통째 잠금</button>
           <button class="btn admin-menu-btn" style="background:#e8f5e9; color:#1b5e20;" onclick="downloadCSVExport()">📊 전체 내역 엑셀 다운로드</button>
           <button class="btn admin-menu-btn" style="background:#ffebee; color:#b71c1c;" onclick="requestClearAll()">🔥 전체 데이터 초기화</button>
           <hr style="margin:10px 0; border:none; border-top:0.5px solid var(--border-primary);">
