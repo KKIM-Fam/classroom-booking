@@ -848,9 +848,10 @@
       
       document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
       
-      // ── 한국어 IME 보호: queueInput 포커스 중에는 사이드바 DOM을 재빌드하지 않음 ──
+      // ── 한국어 IME 보호: 대기입력창이나 공지사항 입력창에 포커스가 있으면 사이드바를 재빌드하지 않음 ──
       const queueInputEl = document.getElementById('queueInput');
-      const queueInputFocused = (document.activeElement === queueInputEl);
+      const noticeInputEl = document.getElementById('noticeInput');
+      const queueInputFocused = (document.activeElement === queueInputEl || document.activeElement === noticeInputEl);
 
       const sidebar = document.getElementById('sidebarContent');
 
