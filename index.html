@@ -302,6 +302,16 @@
           state.queue = queueData;
           const activeNext = queueData.find(q => !q.done);
           state.currentTurn = activeNext ? activeNext.num : null;
+          
+          // [수정3] 내 번호가 브라우저에는 있는데 서버에 없으면 초기화 (유령 번호 삭제)
+          if (myNum !== null) {
+            const isStillExist = queueData.some(q => q.num === myNum);
+            if (!isStillExist) {
+              myNum = null; myName = '';
+              localStorage.removeItem('myNum');
+              localStorage.removeItem('myName');
+            }
+          }
         }
 
         const { data: bookData } = await supabaseClient.from('bookings').select('*');
@@ -335,11 +345,19 @@
 
       setInterval(async () => {
         const currentMode = getMode();
-        // 자동 순번제 종료 감지 (queue → free 전환 시 대기목록 초기화)
+        // [수정1] 관리자 권한이 있는 브라우저에서만 대기목록 전체 초기화를 수행하도록 방어벽 추가
         if (prevMode === 'queue' && currentMode === 'free' && !state.isQueueMode) {
-          await clearQueueData();
-          showToast('⏰ 순번제 시간 종료 — 대기목록이 초기화되었습니다.');
-          await syncFromSupabase();
+          if (isAdmin) { 
+            await clearQueueData();
+            showToast('⏰ 순번제 시간 종료 — 대기목록이 초기화되었습니다.');
+            await syncFromSupabase();
+          } else {
+            myNum = null; myName = '';
+            localStorage.removeItem('myNum');
+            localStorage.removeItem('myName');
+            showToast('⏰ 순번제 시간이 종료되어 자율 모드로 전환되었습니다.');
+            await syncFromSupabase();
+          }
         }
         prevMode = currentMode;
         render();
@@ -430,6 +448,25 @@
       } catch (err) {
         console.error(err);
         showToast('순번 등록 실패 — 잠시 후 다시 시도하세요.');
+      }
+    }
+
+    // [수정2] 일반 사용자가 스스로 대기를 취소할 수 있는 함수
+    async function cancelMyQueue() {
+      if (!myNum) return;
+      if (!confirm("🚨 정말 대기를 취소하시겠습니까? 다음 사람에게 순서가 넘어갑니다.")) return;
+      
+      try {
+        await supabaseClient.from('queue').update({ done: true }).eq('num', myNum);
+        showToast('✓ 대기 신청이 취소되었습니다.');
+        
+        myNum = null; myName = '';
+        localStorage.removeItem('myNum');
+        localStorage.removeItem('myName');
+        
+        await syncFromSupabase();
+      } catch (err) {
+        showToast('대기 취소 중 오류가 발생했습니다.');
       }
     }
 
@@ -867,8 +904,12 @@
           if (mode !== 'queue') {
             // 순번제 모드가 아닐 때는 대기 관련 UI 전체 숨김
             sidebar.innerHTML = '';
+          // [수정2 UI 반영] 대기 취소 버튼 추가된 부분
           } else if (myNum !== null) {
-            sidebar.innerHTML = `<div class="my-badge">내 순번: ${myNum}번 (${myName})</div>`;
+            sidebar.innerHTML = `
+              <div class="my-badge">내 순번: ${myNum}번 (${myName})</div>
+              <button class="btn btn-danger" style="width:100%; margin-top:6px; font-weight:bold;" onclick="cancelMyQueue()">🎫 대기 취소하기 (패스)</button>
+            `;
           } else {
             // 대기목록 wrapper(id=queueListSection)를 함께 구조에 포함해서 생성
             let queueHtml = '';
