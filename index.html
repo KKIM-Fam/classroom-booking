@@ -264,8 +264,8 @@
     let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '0000', isQueueMode: false };
     let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false;
     let weekOffset = 0, sidebarOpen = true, pendingBooking = null, pendingAdminBooking = null;
-    let prevMode = null; // 순번제 모드 전환 감지용
-    let countdownText = ""; // 5분 전 카운트다운 텍스트 저장용 변수
+    let prevMode = null; 
+    let countdownText = ""; 
     
     const formatDate = (d) => d.toISOString().split('T')[0];
     const getWeekDates = (offset = 0) => {
@@ -279,10 +279,9 @@
       if (state.isQueueMode) return 'queue';
       const now = new Date();
       
-      // 월요일 오전 8시 55분 00초 ~ 8시 59분 59초 사이인지 계산 (5분 전 카운트다운 구간)
       if (now.getDay() === 1 && now.getHours() === 8 && now.getMinutes() >= 55) {
         const targetTime = new Date(now);
-        targetTime.setHours(9, 0, 0, 0); // 목표 시간: 월요일 9시 정각
+        targetTime.setHours(9, 0, 0, 0); 
         const diffMs = targetTime - now;
         const diffSec = Math.max(0, Math.floor(diffMs / 1000));
         const min = Math.floor(diffSec / 60);
@@ -321,7 +320,6 @@
           const activeNext = queueData.find(q => !q.done);
           state.currentTurn = activeNext ? activeNext.num : null;
           
-          // 내 번호가 브라우저에는 있는데 서버에 없으면 초기화 (유령 번호 삭제)
           if (myNum !== null) {
             const isStillExist = queueData.some(q => q.num === myNum);
             if (!isStillExist) {
@@ -363,7 +361,6 @@
 
       setInterval(async () => {
         const currentMode = getMode();
-        // 관리자 권한이 있는 브라우저에서만 대기목록 전체 초기화를 수행하도록 방어벽 추가
         if (prevMode === 'queue' && currentMode === 'free' && !state.isQueueMode) {
           if (isAdmin) { 
             await clearQueueData();
@@ -397,18 +394,21 @@
       openModal('adminModal');
     }
     
+    // [제한 해제] 대소문자, 기호, 앞뒤 공백까지 정확하게 포함하여 원본 그대로 1:1 매칭
     function doAdminLogin() {
-      if (document.getElementById('adminPassword').value === state.adminPassword) {
+      const inputPw = document.getElementById('adminPassword').value;
+      const currentPw = String(state.adminPassword);
+      
+      if (inputPw === currentPw) {
         isAdmin = true; closeModal('adminModal'); document.getElementById('adminBtn').textContent = '관리자✓';
         selectedSlots.clear();
         showToast('✓ 관리자 권한 획득 (다중 선택 활성화)'); render();
       } else { showToast('비밀번호가 일치하지 않습니다.'); }
     }
 
-    // 대기 목록 전체 초기화 (순번제 종료 시 호출)
     async function clearQueueData() {
       try {
-        await supabaseClient.from('queue').delete().neq('num', -1); // 전체 삭제
+        await supabaseClient.from('queue').delete().neq('num', -1); 
         state.queue = [];
         state.currentTurn = null;
         myNum = null; myName = '';
@@ -423,7 +423,6 @@
         await supabaseClient.from('settings').upsert({ id: 1, isQueueMode: isChecked });
         state.isQueueMode = isChecked;
         if (!isChecked) {
-          // 강제 순번제 OFF → 대기목록 자동 초기화
           await clearQueueData();
           showToast('🔓 자율 모드 전환 — 대기목록이 초기화되었습니다.');
         } else {
@@ -433,9 +432,13 @@
       } catch (err) { showToast('모드 변경 저장 실패'); }
     }
     
+    // [제한 해제] 글자수 조건(4자리 이상 등) 및 공백 제거 처리를 전면 파괴하여 완전 자율화
     async function saveAdminPassword() {
-      const newPw = document.getElementById('newPassword').value.trim();
-      if (newPw.length < 4) { showToast('4자리 이상 입력하세요.'); return; }
+      const newPw = document.getElementById('newPassword').value;
+      const confirmPw = document.getElementById('confirmPassword').value;
+      
+      if (newPw !== confirmPw) { showToast('비밀번호 확인이 일치하지 않습니다.'); return; }
+      
       try {
         await supabaseClient.from('settings').upsert({ id: 1, adminPassword: newPw });
         state.adminPassword = newPw;
@@ -449,11 +452,9 @@
       if (!name) { showToast('이름을 입력하세요.'); return; }
       
       try {
-        // num을 클라이언트에서 계산하지 않고 DB에서 MAX+1을 원자적으로 처리
-        // 동시 등록 Race Condition 방지: insert 후 반환된 실제 num을 사용
         const { data, error } = await supabaseClient
           .from('queue')
-          .insert([{ name: name, done: false }])  // created_at은 DB 서버 now() 자동 부여
+          .insert([{ name: name, done: false }])  
           .select('num, created_at')
           .single();
         if (error) throw error;
@@ -469,7 +470,6 @@
       }
     }
 
-    // 일반 사용자가 스스로 대기를 취소할 수 있는 함수
     async function cancelMyQueue() {
       if (!myNum) return;
       if (!confirm("🚨 정말 대기를 취소하시겠습니까? 다음 사람에게 순서가 넘어갑니다.")) return;
@@ -497,7 +497,6 @@
       } catch (err) { showToast('대기자 삭제 오류 발생'); }
     }
     
-    /* [핵심 기능 수정] 클릭 핸들러: 관리자 모드일 때 모달창을 띄우지 않고 다중 장바구니 선택이 되도록 분기 수정 */
     function clickSlot(weekIdx, roomIdx, timeIdx) {
       const dates = getWeekDates(weekOffset);
       const date = formatDate(dates[weekIdx]);
@@ -505,7 +504,6 @@
       const mode = getMode();
       const existing = state.bookings[key];
       
-      // 관리자 모드일 때는 무조건 다중 선택 목록에 추가/제거 하도록 설계 변경
       if (isAdmin) {
         selectedSlots.has(key) ? selectedSlots.delete(key) : selectedSlots.add(key);
         render();
@@ -514,7 +512,6 @@
       
       if (existing && existing.name === ' [잠금] ') { showToast('학과 행정 또는 시험 기간 등으로 인해 잠긴 슬롯입니다.'); return; }
       
-      // 일반 사용자가 기존 예약을 누른 경우 (취소 요청 모달)
       if (existing) {
         pendingAdminBooking = {key};
         document.getElementById('controlModalTitle').textContent = "예약 취소 신청";
@@ -524,13 +521,11 @@
         return;
       }
       
-      // 카운트다운 대기 상태일 때는 클릭 막기
       if (mode === 'countdown') {
         showToast('⏳ 아직 대기열이 오픈되지 않았습니다. 잠시만 기다려주세요.');
         return;
       }
       
-      // 순번제 모드일 때 사용자 다중 선택
       if (mode === 'queue') {
         if (myNum === null) { showToast('대기 번호를 먼저 받아주세요.'); return; }
         if (state.currentTurn !== myNum) { showToast('아직 내 입력 차례가 아닙니다.'); return; }
@@ -538,7 +533,6 @@
         render(); return;
       }
       
-      // 일반 자율 모드 단건 등록
       pendingBooking = {date, roomIdx, timeIdx, key};
       document.getElementById('bookingRoom').textContent = ROOMS[roomIdx];
       document.getElementById('bookingTime').textContent = `${date} ${SLOTS[timeIdx]}`;
@@ -547,7 +541,6 @@
       openModal('bookingModal');
     }
 
-    /* [기능 추가] 관리자 모드: 선택된 복수 슬롯 일괄 등록/잠금 실행 */
     async function executeAdminBatchInsert() {
       if (selectedSlots.size === 0) return;
       const name = document.getElementById('batchAdminName').value.trim() || '관리자';
@@ -572,7 +565,6 @@
       } catch (err) { alert('일괄 등록 실패: ' + err.message); }
     }
 
-    /* [기능 추가] 관리자 모드: 선택된 복수 슬롯 일괄 예약 내역 초기화(삭제) 실행 */
     async function executeAdminBatchDelete() {
       if (selectedSlots.size === 0) return;
       if (!confirm(`⚠️ 선택한 ${selectedSlots.size}개 슬롯에 존재하는 모든 예약 내역을 '일괄 삭제' 처리하시겠습니까?`)) return;
@@ -854,7 +846,6 @@
         badge.className = 'badge badge-locked'; badge.textContent = '🛡️ 관리자 모드';
         banner.textContent = '여러 칸을 터치해 멀티 지정한 후, 하단 컨트롤 창에서 일괄 입력 또는 일괄 삭제가 가능합니다.';
       } else if (mode === 'countdown') {
-        // [추가] 5분 전 카운트다운 전용 스킨 적용
         badge.className = 'badge badge-queue'; badge.textContent = '⏱️ 오픈 대기';
         banner.textContent = countdownText;
         banner.style.color = 'var(--text-danger)';
@@ -880,7 +871,6 @@
       
       document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
       
-      // ── 한국어 IME 보호: 대기입력창이나 공지사항 입력창에 포커스가 있으면 사이드바를 재빌드하지 않음 ──
       const queueInputEl = document.getElementById('queueInput');
       const noticeInputEl = document.getElementById('noticeInput');
       const queueInputFocused = (document.activeElement === queueInputEl || document.activeElement === noticeInputEl);
@@ -888,7 +878,6 @@
       const sidebar = document.getElementById('sidebarContent');
 
       if (queueInputFocused) {
-        // ── 포커스 중: 입력란은 절대 건드리지 않고, 대기목록 wrapper만 갱신 ──
         const queueListSection = document.getElementById('queueListSection');
         if (queueListSection) {
           if (state.queue.length > 0) {
@@ -900,7 +889,6 @@
           }
         }
       } else {
-        // ── 포커스 없을 때: 사이드바 전체 재빌드 ──
         if (isAdmin) {
           let adminSidebarHtml = `
             <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
@@ -934,7 +922,6 @@
           } else { adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`; }
           sidebar.innerHTML = adminSidebarHtml;
         } else {
-          // 카운트다운 모드이거나 자율 모드일 때 대기 등록 UI 숨김
           if (mode !== 'queue') {
             sidebar.innerHTML = '';
           } else if (myNum !== null) {
