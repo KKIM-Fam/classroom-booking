@@ -41,7 +41,6 @@
     .notice-text { flex: 1; line-height: 1.4; }
     .notice-item button { padding: 2px 6px; font-size: 10px; background: rgba(255,255,255,0.2); border: 0.5px solid rgba(255,255,255,0.3); color: var(--text-warning); border-radius: 2px; cursor: pointer; flex-shrink: 0; }
     
-    /* 상단 대기열 컴포넌트 스타일 */
     .top-queue-container { background: var(--bg-primary); padding: 10px 14px; border-bottom: 0.5px solid var(--border-primary); display: flex; flex-direction: column; gap: 8px; }
     .top-queue-row { display: flex; align-items: center; justify-content: flex-start; gap: 15px; flex-wrap: wrap; }
     .top-queue-wrapper { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
@@ -324,7 +323,7 @@
         const { data: noticeData } = await supabaseClient.from('notices').select('*').order('id', { ascending: true });
         if (noticeData) state.notices = noticeData;
 
-        const { data: queueData } = await supabaseClient.from('queue').select('*').order('created_at', { ascending: true }).order('num', { ascending: true });
+        const { data: queueData } = await supabaseClient.from('queue').select('*').order('num', { ascending: true });
         if (queueData) {
           state.queue = queueData;
           const activeNext = queueData.find(q => !q.done);
@@ -455,37 +454,18 @@
       } catch (err) { showToast('변경 실패'); }
     }
     
-    // [중요 패치] Identity 시퀀스를 완벽하게 무력화하고 1번부터 원자적 정렬을 강제하는 로직 보완
+    // ⭐ [동시성 순번 오류 패치 완료] RPC 함수를 사용해 원자적으로 대기열 번호를 순차 할당합니다.
     async function joinQueue() {
       const name = document.getElementById('queueInput')?.value?.trim();
       if (!name) { showToast('이름을 입력하세요.'); return; }
       
       try {
-        let nextNum = 1;
-        // 1단계: 실시간으로 DB에서 가장 높은 대기 번호를 직접 조회
-        const { data: maxCheck, error: maxError } = await supabaseClient
-          .from('queue')
-          .select('num')
-          .order('num', { ascending: false })
-          .limit(1);
-          
-        if (maxError) throw maxError;
-        
-        // 2단계: 기존 대기자가 명백히 존재할 때만 최대 번호 + 1을 배정 (없으면 무조건 1번 강제 초기화)
-        if (maxCheck && maxCheck.length > 0) {
-          nextNum = maxCheck[0].num + 1;
-        }
-        
-        // 3단계: 명시적으로 계산된 차세대 고유 번호를 인서트 파라미터로 주입하여 강제 가공
-        const { data, error } = await supabaseClient
-          .from('queue')
-          .insert([{ num: nextNum, name: name, done: false }])  
-          .select('num')
-          .single();
+        // 백엔드 RPC 함수를 직접 실행하여 동시 입력 간 레이스 컨디션 절대 방지
+        const { data, error } = await supabaseClient.rpc('join_queue_atomic', { user_name: name });
           
         if (error) throw error;
         
-        myNum = data.num; myName = name;
+        myNum = data; myName = name;
         localStorage.setItem('myNum', JSON.stringify(myNum));
         localStorage.setItem('myName', JSON.stringify(myName));
         await syncFromSupabase();
@@ -895,7 +875,6 @@
         document.getElementById('noticeList').innerHTML = state.notices.map(n => `<div class="notice-item"><div class="notice-text">📢 ${n.text}</div>${isAdmin ? `<button onclick="deleteNotice(${n.id})">×</button>` : ''}</div>`).join('');
       } else { noticeSection.style.display = 'none'; }
       
-      // ── 상단 고정 대기 시스템 렌더링 파트 (IME 키보드 분리 패치 적용) ──
       const topQueueContainer = document.getElementById('topQueueContainer');
       const queueInputEl = document.getElementById('queueInput');
       const noticeInputEl = document.getElementById('noticeInput');
@@ -904,7 +883,6 @@
       if (mode === 'queue' && !isAdmin) {
         topQueueContainer.style.display = 'flex';
         
-        // [수정] 글자 입력 도중 실시간 데이터 갱신 시 대기 목록 부분만 핀포인트로 리프레시하여 글자 증발 현상 완벽 조치
         if (inputFocused) {
           const flowListEl = document.getElementById('queueFlowList');
           if (flowListEl && state.queue.length > 0) {
@@ -915,7 +893,6 @@
             `).join('');
           }
         } else {
-          // 포커스가 주어지지 않았을 때만 원본 레이아웃 골조 빌드
           let queueWidgetHtml = `<div class="top-queue-row">`;
           
           if (myNum !== null) {
@@ -958,7 +935,6 @@
 
       document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
       
-      // ── 좌측 사이드바 렌더링 파트 ──
       const sidebarEl = document.getElementById('sidebar');
       if (isAdmin) {
         sidebarEl.style.display = sidebarOpen ? 'block' : 'none';
@@ -998,7 +974,6 @@
           adminSidebarHtml += `</div>`;
           document.getElementById('sidebarContent').innerHTML = adminSidebarHtml;
         } else {
-          // 공지 배포 타이핑 도중에도 튕기지 않도록 방어
           const adminQueueListSection = document.getElementById('adminQueueListSection');
           if (adminQueueListSection && state.queue.length > 0) {
             adminQueueListSection.innerHTML = state.queue.map(q => `
