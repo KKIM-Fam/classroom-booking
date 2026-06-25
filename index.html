@@ -35,15 +35,23 @@
     .badge-locked { background: var(--bg-danger); color: var(--text-danger); }
     .badge-queue { background: var(--bg-warning); color: var(--text-warning); font-weight: bold; }
     .badge-free { background: var(--bg-success); color: var(--text-success); }
+    
     .notice-section { max-height: 120px; overflow-y: auto; background: var(--bg-warning); color: var(--text-warning); font-size: 12px; border-bottom: 0.5px solid var(--border-primary); padding: 8px; }
     .notice-item { background: rgba(255,255,255,0.1); padding: 6px 8px; border-radius: 3px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .notice-text { flex: 1; line-height: 1.4; }
     .notice-item button { padding: 2px 6px; font-size: 10px; background: rgba(255,255,255,0.2); border: 0.5px solid rgba(255,255,255,0.3); color: var(--text-warning); border-radius: 2px; cursor: pointer; flex-shrink: 0; }
+    
+    /* 시간표 상단 배치 전용 대기열 컴포넌트 스타일 */
+    .top-queue-container { background: var(--bg-primary); padding: 10px 14px; border-bottom: 0.5px solid var(--border-primary); display: flex; flex-direction: column; gap: 8px; }
+    .top-queue-row { display: flex; align-items: center; justify-content: flex-start; gap: 15px; flex-wrap: wrap; }
+    .top-queue-wrapper { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+    .queue-flow-list { display: flex; gap: 6px; overflow-x: auto; flex: 1; padding: 2px 0; white-space: nowrap; }
+    
     .main-content { display: flex; flex: 1; gap: 0; }
     .sidebar { width: 180px; border-right: 0.5px solid var(--border-primary); padding: 10px; overflow-y: auto; background: var(--bg-primary); }
     .sidebar-section { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin: 10px 0 6px 0; }
     
-    .input-group { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
+    .input-group { display: flex; gap: 5px; width: 220px; }
     .input-group input { flex: 1; padding: 6px 8px; border: 1.5px solid #1976d2; border-radius: 4px; font-size: 12px; font-weight: 500; outline: none; min-width: 0; }
     .btn-submit-queue { padding: 6px 12px; background: #1976d2; color: #ffffff; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; white-space: nowrap; flex-shrink: 0; }
     .btn-submit-queue:hover { background: #115293; }
@@ -62,7 +70,6 @@
     td:hover { opacity: 0.8; }
     td.time-label { background: var(--bg-secondary); color: var(--text-secondary); cursor: default; padding: 0 4px; font-weight: 600; font-size: 10px; width: 50px; }
     
-    /* 하단 푸터 영역 스타일 확장 */
     .footer { border-top: 0.5px solid var(--border-primary); padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: var(--bg-primary); flex-wrap: wrap; }
     .footer-admin-inputs { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 280px; }
     .footer-admin-inputs input { padding: 4px 6px; font-size: 11px; border: 0.5px solid var(--border-primary); border-radius: 4px; width: 110px; }
@@ -77,12 +84,12 @@
     .toast { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: var(--bg-primary); border: 0.5px solid var(--border-primary); border-radius: 6px; padding: 8px 16px; font-size: 12px; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
     .toast.show { opacity: 1; }
     .admin-badge { background: var(--bg-danger); color: var(--text-danger); padding: 6px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-align: center; }
-    .my-badge { background: var(--bg-success); color: var(--text-success); padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+    .my-badge { background: var(--bg-success); color: var(--text-success); padding: 5px 8px; border-radius: 4px; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; height: 30px; white-space: nowrap; }
     
-    .queue-item { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 7px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; margin-bottom: 3px; }
-    .queue-item.active { background: var(--bg-info); border-color: var(--text-info); }
-    .queue-info-text { flex: 1; display: flex; gap: 4px; align-items: center; }
-    .btn-queue-del { background: transparent; border: none; color: var(--text-danger); font-size: 12px; font-weight: bold; cursor: pointer; padding: 0 4px; line-height: 1; }
+    .queue-item { display: inline-flex; align-items: center; justify-content: space-between; gap: 5px; padding: 4px 8px; border: 0.5px solid var(--border-primary); border-radius: 4px; font-size: 11px; background: var(--bg-secondary); height: 28px; }
+    .queue-item.active { background: var(--bg-info); border-color: var(--text-info); font-weight: bold; color: var(--text-info); }
+    .queue-info-text { display: flex; gap: 4px; align-items: center; }
+    .btn-queue-del { background: transparent; border: none; color: var(--text-danger); font-size: 12px; font-weight: bold; cursor: pointer; padding: 0 2px; line-height: 1; }
     .btn-queue-del:hover { background: rgba(211, 47, 47, 0.1); border-radius: 2px; }
 
     .admin-menu-btn { width: 100%; margin-top: 6px; text-align: left; padding: 6px 8px; font-size: 11px; }
@@ -95,7 +102,6 @@
     input:checked + .slider { background-color: #f57c00; }
     input:checked + .slider:before { transform: translateX(14px); }
     
-    /* 다중 선택 슬롯 스타일 효과 */
     .selected-admin-overlay { box-shadow: inset 0 0 0 2px #ff1744 !important; background-color: rgba(255, 23, 68, 0.15) !important; }
     .selected-user-overlay { box-shadow: inset 0 0 0 2px #2979ff !important; background-color: rgba(41, 121, 255, 0.15) !important; }
   </style>
@@ -112,6 +118,11 @@
     
     <div class="notice-section" id="noticeSection" style="display: none;">
       <div id="noticeList"></div>
+    </div>
+    
+    <!-- 공지사항 밑, 시간표 위에 고정 배치되는 상단 대기 순번 시스템 인터페이스 -->
+    <div class="top-queue-container" id="topQueueContainer" style="display: none;">
+      <div id="topQueueContent"></div>
     </div>
     
     <div class="main-content">
@@ -394,7 +405,6 @@
       openModal('adminModal');
     }
     
-    // [제한 해제] 대소문자, 기호, 앞뒤 공백까지 정확하게 포함하여 원본 그대로 1:1 매칭
     function doAdminLogin() {
       const inputPw = document.getElementById('adminPassword').value;
       const currentPw = String(state.adminPassword);
@@ -432,7 +442,6 @@
       } catch (err) { showToast('모드 변경 저장 실패'); }
     }
     
-    // [제한 해제] 글자수 조건(4자리 이상 등) 및 공백 제거 처리를 전면 파괴하여 완전 자율화
     async function saveAdminPassword() {
       const newPw = document.getElementById('newPassword').value;
       const confirmPw = document.getElementById('confirmPassword').value;
@@ -869,27 +878,75 @@
         document.getElementById('noticeList').innerHTML = state.notices.map(n => `<div class="notice-item"><div class="notice-text">📢 ${n.text}</div>${isAdmin ? `<button onclick="deleteNotice(${n.id})">×</button>` : ''}</div>`).join('');
       } else { noticeSection.style.display = 'none'; }
       
-      document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
-      
+      // ─── [핵심 업데이트] 상단 고정 대기 시스템 렌더링 파트 ───
+      const topQueueContainer = document.getElementById('topQueueContainer');
       const queueInputEl = document.getElementById('queueInput');
       const noticeInputEl = document.getElementById('noticeInput');
-      const queueInputFocused = (document.activeElement === queueInputEl || document.activeElement === noticeInputEl);
+      const inputFocused = (document.activeElement === queueInputEl || document.activeElement === noticeInputEl);
 
-      const sidebar = document.getElementById('sidebarContent');
-
-      if (queueInputFocused) {
-        const queueListSection = document.getElementById('queueListSection');
-        if (queueListSection) {
-          if (state.queue.length > 0) {
-            let qHtml = `<div class="sidebar-section" style="margin-top:15px;">📋 실시간 대기 목록</div>`;
-            state.queue.forEach(q => { qHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`; });
-            queueListSection.innerHTML = qHtml;
-          } else {
-            queueListSection.innerHTML = '';
+      if (mode === 'queue' && !isAdmin) {
+        topQueueContainer.style.display = 'flex';
+        
+        // 입력창에 타이핑 중일 때는 DOM 구조를 허물지 않고 내부 대기 현황 배열만 리프레시하여 글자 지워짐 철저히 방어
+        if (inputFocused) {
+          const flowListEl = document.getElementById('queueFlowList');
+          if (flowListEl && state.queue.length > 0) {
+            flowListEl.innerHTML = state.queue.map(q => `
+              <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}">
+                <b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]
+              </div>
+            `).join('');
           }
+        } else {
+          // 포커스가 없을 때만 전체 상단 위젯 블록을 완전히 새롭게 빌드
+          let queueWidgetHtml = `<div class="top-queue-row">`;
+          
+          if (myNum !== null) {
+            queueWidgetHtml += `
+              <div class="my-badge">내 순번: ${myNum}번 (${myName})</div>
+              <button class="btn btn-danger" style="font-weight:bold; height:30px;" onclick="cancelMyQueue()">🎫 대기 취소하기 (패스)</button>
+            `;
+          } else {
+            queueWidgetHtml += `
+              <div class="top-queue-wrapper">
+                <span style="font-weight:600; font-size:12px; color:var(--text-primary);">🎫 대기 순번 등록:</span>
+                <div class="input-group">
+                  <input type="text" id="queueInput" placeholder="이름 입력" onkeydown="if(event.key==='Enter')joinQueue()">
+                  <button class="btn-submit-queue" onclick="joinQueue()">등록</button>
+                </div>
+              </div>
+            `;
+          }
+          
+          if (state.queue.length > 0) {
+            queueWidgetHtml += `
+              <div class="top-queue-wrapper" style="flex:1; min-width:200px; overflow:hidden;">
+                <span style="font-weight:600; font-size:12px; color:var(--text-secondary); white-space:nowrap;">📋 실시간 대기목록:</span>
+                <div class="queue-flow-list" id="queueFlowList">
+                  ${state.queue.map(q => `
+                    <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}">
+                      <b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}](구분)
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          }
+          queueWidgetHtml += `</div>`;
+          document.getElementById('topQueueContent').innerHTML = queueWidgetHtml;
         }
       } else {
-        if (isAdmin) {
+        topQueueContainer.style.display = 'none';
+      }
+
+      document.getElementById('weekLabel').textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()} ~ ${dates[6].getMonth()+1}/${dates[6].getDate()}`;
+      
+      // ─── 좌측 사이드바 컴포넌트 처리 파트 ───
+      const sidebarEl = document.getElementById('sidebar');
+      if (isAdmin) {
+        sidebarEl.style.display = sidebarOpen ? 'block' : 'none';
+        
+        if (!inputFocused) {
           let adminSidebarHtml = `
             <div class="admin-badge">🛡️ 관리자 컨트롤 허브</div>
             <div class="switch-container">
@@ -910,40 +967,34 @@
             <button class="btn" style="width:100%; margin-top:10px;" onclick="openModal('adminSettingModal')">암호 변경</button>
             <hr style="margin:15px 0; border:none; border-top:0.5px solid var(--border-primary);">
             <div class="sidebar-section">⚙️ 대기 제어/삭제 명단</div>
+            <div id="adminQueueListSection">
           `;
           if (state.queue.length > 0) {
             state.queue.forEach(q => {
               adminSidebarHtml += `
-                <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}">
-                  <div class="queue-info-text"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>
+                <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}" style="display:flex; margin-bottom:3px; width:100%;">
+                  <div class="queue-info-text"><b>${q.num}번</b> ${q.name}</div>
                   <button class="btn-queue-del" onclick="deleteQueueItem(${q.num}, '${q.name}')" title="강제 삭제">×</button>
                 </div>`;
             });
           } else { adminSidebarHtml += `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">대기자가 없습니다.</div>`; }
-          sidebar.innerHTML = adminSidebarHtml;
+          adminSidebarHtml += `</div>`;
+          document.getElementById('sidebarContent').innerHTML = adminSidebarHtml;
         } else {
-          if (mode !== 'queue') {
-            sidebar.innerHTML = '';
-          } else if (myNum !== null) {
-            sidebar.innerHTML = `
-              <div class="my-badge">내 순번: ${myNum}번 (${myName})</div>
-              <button class="btn btn-danger" style="width:100%; margin-top:6px; font-weight:bold;" onclick="cancelMyQueue()">🎫 대기 취소하기 (패스)</button>
-            `;
-          } else {
-            let queueHtml = '';
-            if (state.queue.length > 0) {
-              queueHtml = `<div class="sidebar-section" style="margin-top:15px;">📋 실시간 대기 목록</div>`;
-              state.queue.forEach(q => { queueHtml += `<div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}"><b>${q.num}번</b> ${q.name} [${q.done ? '완료' : '대기'}]</div>`; });
-            }
-            sidebar.innerHTML = `
-              <div class="sidebar-section">🎫 대기 순번 등록</div>
-              <div class="input-group">
-                <input type="text" id="queueInput" placeholder="이름 입력" onkeydown="if(event.key==='Enter')joinQueue()">
-                <button class="btn-submit-queue" onclick="joinQueue()">등록</button>
+          // 관리자가 공지사항 입력중일 때 명단 내용만 안쪽 실시간 동기화하여 키보드 튕김 완벽 방어
+          const adminQueueListSection = document.getElementById('adminQueueListSection');
+          if (adminQueueListSection && state.queue.length > 0) {
+            adminQueueListSection.innerHTML = state.queue.map(q => `
+              <div class="queue-item ${q.num === state.currentTurn ? 'active' : ''}" style="display:flex; margin-bottom:3px; width:100%;">
+                <div class="queue-info-text"><b>${q.num}번</b> ${q.name}</div>
+                <button class="btn-queue-del" onclick="deleteQueueItem(${q.num}, '${q.name}')" title="강제 삭제">×</button>
               </div>
-              <div id="queueListSection">${queueHtml}</div>`;
+            `).join('');
           }
         }
+      } else {
+        // 일반 사용자의 경우 대기열이 상단으로 이동했으므로 불필요한 빈 좌측 사이드바 패널 영역 히든 처리
+        sidebarEl.style.display = 'none';
       }
       
       let tableHtml = '<thead><tr><th class="time-header">시간</th>';
