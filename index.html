@@ -270,7 +270,8 @@
       {bg: '#F4C0D1', tc: '#72243E'}, {bg: '#D3D1C7', tc: '#2C2C2A'},
     ];
     
-    let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '0000', isQueueMode: false };
+    // 버그 방지: 관리자 비밀번호 초기값을 공백으로 두어 서버 데이터가 완전히 받아와지기 전 레이스 컨디션을 방지합니다.
+    let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '', isQueueMode: false };
     let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false;
     let weekOffset = 0, sidebarOpen = true, pendingBooking = null, pendingAdminBooking = null;
     let prevMode = null; 
@@ -348,7 +349,12 @@
 
         const { data: settingsData } = await supabaseClient.from('settings').select('*').single();
         if (settingsData) {
-          if (settingsData.adminPassword) state.adminPassword = settingsData.settings_adminPassword || settingsData.adminPassword;
+          // 수정 완료: 잘못 매칭되어 있던 필드명 버그를 수정하여 데이터베이스의 단일 컬럼(adminPassword)과 정확히 동기화되도록 보장합니다.
+          if (settingsData.adminPassword) {
+            state.adminPassword = settingsData.adminPassword;
+          } else {
+            state.adminPassword = '0000'; // DB에 값이 없을 경우 백업 초기 비밀번호
+          }
           state.isQueueMode = settingsData.isQueueMode || false;
         }
 
@@ -407,6 +413,11 @@
       const inputPw = document.getElementById('adminPassword').value;
       const currentPw = String(state.adminPassword);
       
+      if (!currentPw) {
+        showToast('서버 설정을 불러오는 중입니다. 잠시 후 다시 시도하세요.');
+        return;
+      }
+      
       if (inputPw === currentPw) {
         isAdmin = true; closeModal('adminModal'); document.getElementById('adminBtn').textContent = '관리자✓';
         selectedSlots.clear();
@@ -454,15 +465,12 @@
       } catch (err) { showToast('변경 실패'); }
     }
     
-    // ⭐ [동시성 순번 오류 패치 완료] RPC 함수를 사용해 원자적으로 대기열 번호를 순차 할당합니다.
     async function joinQueue() {
       const name = document.getElementById('queueInput')?.value?.trim();
       if (!name) { showToast('이름을 입력하세요.'); return; }
       
       try {
-        // 백엔드 RPC 함수를 직접 실행하여 동시 입력 간 레이스 컨디션 절대 방지
         const { data, error } = await supabaseClient.rpc('join_queue_atomic', { user_name: name });
-          
         if (error) throw error;
         
         myNum = data; myName = name;
