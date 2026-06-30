@@ -346,19 +346,19 @@
           state.bookings = newBookings;
         }
 
-        // 🔍 [버그 패치 완료] settings 테이블 데이터 동기화 예외 처리
         const { data: settingsData } = await supabaseClient
           .from('settings')
           .select('*')
           .eq('id', 1)
           .maybeSingle();
 
-        if (settingsData && settingsData.adminPassword) {
-          state.adminPassword = String(settingsData.adminPassword);
+        // 🔍 [패치] DB 소문자 컬럼명(adminpassword) 매칭 완료
+        if (settingsData && settingsData.adminpassword) {
+          state.adminPassword = String(settingsData.adminpassword);
           state.isQueueMode = settingsData.isQueueMode || false;
         } else {
           if (!state.adminPassword) {
-            state.adminPassword = '0000'; // 서버에 레코드가 아예 없는 상태일 때만 최후의 수단으로 바인딩
+            state.adminPassword = '0000';
           }
         }
 
@@ -462,11 +462,17 @@
       if (newPw !== confirmPw) { showToast('비밀번호 확인이 일치하지 않습니다.'); return; }
       
       try {
-        await supabaseClient.from('settings').upsert({ id: 1, adminPassword: newPw });
+        // 🔍 [패치] DB 소문자 컬럼명(adminpassword)으로 안전하게 수정
+        const { error } = await supabaseClient.from('settings').upsert({ id: 1, adminpassword: newPw });
+        if (error) throw error;
+        
         state.adminPassword = newPw;
         closeModal('adminSettingModal');
         showToast('✓ 비밀번호 변경 완료');
-      } catch (err) { showToast('변경 실패'); }
+      } catch (err) { 
+        console.error(err);
+        showToast('DB 저장 실패: ' + (err.message || 'Supabase 설정을 확인하세요.')); 
+      }
     }
     
     async function joinQueue() {
