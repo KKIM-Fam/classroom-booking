@@ -352,7 +352,6 @@
           .eq('id', 1)
           .maybeSingle();
 
-        // 🔍 [패치] DB 소문자 컬럼명(adminpassword) 매칭 완료
         if (settingsData && settingsData.adminpassword) {
           state.adminPassword = String(settingsData.adminpassword);
           state.isQueueMode = settingsData.isQueueMode || false;
@@ -380,18 +379,14 @@
 
       setInterval(async () => {
         const currentMode = getMode();
+        // 🔍 [버그 패치] 순번제가 Off(free)로 전환될 때 모든 브라우저(일반유저 포함)에서 대기 목록 초기화 쿼리를 실행하도록 변경
         if (prevMode === 'queue' && currentMode === 'free' && !state.isQueueMode) {
-          if (isAdmin) { 
-            await clearQueueData();
-            showToast('⏰ 순번제 시간 종료 — 대기목록이 초기화되었습니다.');
-            await syncFromSupabase();
-          } else {
-            myNum = null; myName = '';
-            localStorage.removeItem('myNum');
-            localStorage.removeItem('myName');
-            showToast('⏰ 순번제 시간이 종료되어 자율 모드로 전환되었습니다.');
-            await syncFromSupabase();
-          }
+          await clearQueueData();
+          myNum = null; myName = '';
+          localStorage.removeItem('myNum');
+          localStorage.removeItem('myName');
+          showToast('⏰ 순번제 시간이 종료되어 자율 모드로 전환되었으며, 대기목록이 초기화되었습니다.');
+          await syncFromSupabase();
         }
         prevMode = currentMode;
         render();
@@ -434,9 +429,6 @@
         await supabaseClient.from('queue').delete().neq('num', -1); 
         state.queue = [];
         state.currentTurn = null;
-        myNum = null; myName = '';
-        localStorage.removeItem('myNum');
-        localStorage.removeItem('myName');
       } catch (err) { console.error('대기목록 초기화 실패:', err); }
     }
 
@@ -447,6 +439,9 @@
         state.isQueueMode = isChecked;
         if (!isChecked) {
           await clearQueueData();
+          myNum = null; myName = '';
+          localStorage.removeItem('myNum');
+          localStorage.removeItem('myName');
           showToast('🔓 자율 모드 전환 — 대기목록이 초기화되었습니다.');
         } else {
           showToast('📋 수동 강제 순번제가 활성화되었습니다.');
@@ -462,7 +457,6 @@
       if (newPw !== confirmPw) { showToast('비밀번호 확인이 일치하지 않습니다.'); return; }
       
       try {
-        // 🔍 [패치] DB 소문자 컬럼명(adminpassword)으로 안전하게 수정
         const { error } = await supabaseClient.from('settings').upsert({ id: 1, adminpassword: newPw });
         if (error) throw error;
         
