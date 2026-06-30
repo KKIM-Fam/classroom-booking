@@ -270,7 +270,6 @@
       {bg: '#F4C0D1', tc: '#72243E'}, {bg: '#D3D1C7', tc: '#2C2C2A'},
     ];
     
-    // 버그 방지: 관리자 비밀번호 초기값을 공백으로 두어 서버 데이터가 완전히 받아와지기 전 레이스 컨디션을 방지합니다.
     let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '', isQueueMode: false };
     let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false;
     let weekOffset = 0, sidebarOpen = true, pendingBooking = null, pendingAdminBooking = null;
@@ -347,15 +346,20 @@
           state.bookings = newBookings;
         }
 
-        const { data: settingsData } = await supabaseClient.from('settings').select('*').single();
-        if (settingsData) {
-          // 수정 완료: 잘못 매칭되어 있던 필드명 버그를 수정하여 데이터베이스의 단일 컬럼(adminPassword)과 정확히 동기화되도록 보장합니다.
-          if (settingsData.adminPassword) {
-            state.adminPassword = settingsData.adminPassword;
-          } else {
-            state.adminPassword = '0000'; // DB에 값이 없을 경우 백업 초기 비밀번호
-          }
+        // 🔍 [버그 패치 완료] settings 테이블 데이터 동기화 예외 처리
+        const { data: settingsData } = await supabaseClient
+          .from('settings')
+          .select('*')
+          .eq('id', 1)
+          .maybeSingle();
+
+        if (settingsData && settingsData.adminPassword) {
+          state.adminPassword = String(settingsData.adminPassword);
           state.isQueueMode = settingsData.isQueueMode || false;
+        } else {
+          if (!state.adminPassword) {
+            state.adminPassword = '0000'; // 서버에 레코드가 아예 없는 상태일 때만 최후의 수단으로 바인딩
+          }
         }
 
         render();
