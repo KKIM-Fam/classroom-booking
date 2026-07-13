@@ -272,6 +272,7 @@
     
     let state = { queue: [], currentTurn: null, bookings: {}, notices: [], nameColors: {}, adminPassword: '', isQueueMode: false };
     let myNum = null, myName = '', selectedSlots = new Set(), isAdmin = false;
+    let currentAdminPassword = ''; // 🔥 보안 패치: 세션 동안 주입할 관리자 패스워드 기록용 변수
     let weekOffset = 0, sidebarOpen = true, pendingBooking = null, pendingAdminBooking = null;
     let prevMode = null; 
     let countdownText = ""; 
@@ -379,7 +380,6 @@
 
       setInterval(async () => {
         const currentMode = getMode();
-        // 🔍 [버그 패치] 순번제가 Off(free)로 전환될 때 모든 브라우저(일반유저 포함)에서 대기 목록 초기화 쿼리를 실행하도록 변경
         if (prevMode === 'queue' && currentMode === 'free' && !state.isQueueMode) {
           await clearQueueData();
           myNum = null; myName = '';
@@ -404,23 +404,29 @@
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
     
     function showAdminLogin() {
-      if (isAdmin) { isAdmin = false; document.getElementById('adminBtn').textContent = '관리자'; selectedSlots.clear(); render(); return; }
+      if (isAdmin) { isAdmin = false; currentAdminPassword = ''; document.getElementById('adminBtn').textContent = '관리자'; selectedSlots.clear(); render(); return; }
       openModal('adminModal');
     }
     
-    function doAdminLogin() {
+    async function doAdminLogin() {
       const inputPw = document.getElementById('adminPassword').value;
-      const currentPw = String(state.adminPassword);
       
-      if (!currentPw) {
-        showToast('서버 설정을 불러오는 중입니다. 잠시 후 다시 시도하세요.');
-        return;
+      const { data: isValid, error } = await supabaseClient.rpc('verify_admin', { input_pw: inputPw });
+      
+      if (error) { 
+        showToast('서버 검증 중 오류가 발생했습니다.'); 
+        console.error(error);
+        return; 
       }
       
-      if (inputPw === currentPw) {
-        isAdmin = true; closeModal('adminModal'); document.getElementById('adminBtn').textContent = '관리자✓';
+      if (isValid) {
+        isAdmin = true; 
+        currentAdminPassword = inputPw; // 🔥 패치: 유효성 검증 완료된 패스워드를 주입하여 세션 제어권 획득
+        closeModal('adminModal'); 
+        document.getElementById('adminBtn').textContent = '관리자✓';
         selectedSlots.clear();
-        showToast('✓ 관리자 권한 획득 (다중 선택 활성화)'); render();
+        showToast('✓ 관리자 권한 획득 성공 (다중 선택 활성화)'); 
+        render();
       } else { showToast('비밀번호가 일치하지 않습니다.'); }
     }
 
@@ -432,13 +438,18 @@
       } catch (err) { console.error('대기목록 초기화 실패:', err); }
     }
 
+    // 🔥 보안 수정: 순번제 토글 서버 RPC 연동
     async function toggleQueueMode(chk) {
       try {
         const isChecked = chk.checked;
-        await supabaseClient.from('settings').upsert({ id: 1, isQueueMode: isChecked });
+        const { data: success, error } = await supabaseClient.rpc('admin_toggle_queue_mode', {
+          input_pw: currentAdminPassword,
+          is_checked: isChecked
+        });
+        if (error || !success) throw new Error('권한이 없거나 처리 오류가 발생했습니다.');
+
         state.isQueueMode = isChecked;
         if (!isChecked) {
-          await clearQueueData();
           myNum = null; myName = '';
           localStorage.removeItem('myNum');
           localStorage.removeItem('myName');
@@ -447,9 +458,10 @@
           showToast('📋 수동 강제 순번제가 활성화되었습니다.');
         }
         await syncFromSupabase();
-      } catch (err) { showToast('모드 변경 저장 실패'); }
+      } catch (err) { showToast('모드 변경 저장 실패: ' + err.message); }
     }
     
+    // 🔥 보안 수정: 비밀번호 변경 서버 RPC 연동
     async function saveAdminPassword() {
       const newPw = document.getElementById('newPassword').value;
       const confirmPw = document.getElementById('confirmPassword').value;
@@ -457,15 +469,18 @@
       if (newPw !== confirmPw) { showToast('비밀번호 확인이 일치하지 않습니다.'); return; }
       
       try {
-        const { error } = await supabaseClient.from('settings').upsert({ id: 1, adminpassword: newPw });
-        if (error) throw error;
+        const { data: success, error } = await supabaseClient.rpc('admin_change_password', {
+          current_pw: currentAdminPassword,
+          new_pw: newPw
+        });
+        if (error || !success) throw new Error('변경 권한이 없거나 실패했습니다.');
         
-        state.adminPassword = newPw;
+        currentAdminPassword = newPw; // 세션 비밀번호 갱신
         closeModal('adminSettingModal');
         showToast('✓ 비밀번호 변경 완료');
       } catch (err) { 
         console.error(err);
-        showToast('DB 저장 실패: ' + (err.message || 'Supabase 설정을 확인하세요.')); 
+        showToast('변경 실패: ' + err.message); 
       }
     }
     
@@ -506,13 +521,18 @@
       }
     }
 
+    // 🔥 보안 수정: 대기자 삭제 RPC 연동
     async function deleteQueueItem(num, name) {
       if (!confirm(`⚠️ [${num}번 ${name}] 대기자를 목록에서 강제 제외하시겠습니까?`)) return;
       try {
-        await supabaseClient.from('queue').delete().eq('num', num);
+        const { data: success, error } = await supabaseClient.rpc('admin_delete_queue_item', {
+          input_pw: currentAdminPassword,
+          q_num: num
+        });
+        if (error || !success) throw new Error('삭제 권한이 없거나 처리에 실패했습니다.');
         showToast(`✓ ${num}번 대기자 삭제 완료`);
         await syncFromSupabase();
-      } catch (err) { showToast('대기자 삭제 오류 발생'); }
+      } catch (err) { showToast('대기자 삭제 오류 발생: ' + err.message); }
     }
     
     function clickSlot(weekIdx, roomIdx, timeIdx) {
@@ -559,6 +579,7 @@
       openModal('bookingModal');
     }
 
+    // 🔥 보안 수정: 일괄 등록/잠금 RPC 연동
     async function executeAdminBatchInsert() {
       if (selectedSlots.size === 0) return;
       const name = document.getElementById('batchAdminName').value.trim() || '관리자';
@@ -567,13 +588,14 @@
       if(!confirm(`선택한 ${selectedSlots.size}개의 슬롯에 [예약자: ${name}] 정보를 일괄 등록(덮어쓰기) 하시겠습니까?`)) return;
       
       const batch = [];
-      selectedSlots.forEach(key => {
-        batch.push({ key, name, memo, num: 'admin' });
-      });
+      selectedSlots.forEach(key => { batch.push({ key, name, memo, num: 'admin' }); });
 
       try {
-        const { error } = await supabaseClient.from('bookings').upsert(batch);
-        if (error) throw error;
+        const { data: success, error } = await supabaseClient.rpc('admin_batch_insert', {
+          input_pw: currentAdminPassword,
+          batch_data: batch
+        });
+        if (error || !success) throw new Error('등록 실패 또는 권한 오류');
         
         showToast(`✓ ${selectedSlots.size}개 슬롯 일괄 등록 완료`);
         selectedSlots.clear();
@@ -583,14 +605,18 @@
       } catch (err) { alert('일괄 등록 실패: ' + err.message); }
     }
 
+    // 🔥 보안 수정: 일괄 삭제 RPC 연동
     async function executeAdminBatchDelete() {
       if (selectedSlots.size === 0) return;
       if (!confirm(`⚠️ 선택한 ${selectedSlots.size}개 슬롯에 존재하는 모든 예약 내역을 '일괄 삭제' 처리하시겠습니까?`)) return;
       
       const keysToDelete = Array.from(selectedSlots);
       try {
-        const { error } = await supabaseClient.from('bookings').delete().in('key', keysToDelete);
-        if (error) throw error;
+        const { data: success, error } = await supabaseClient.rpc('admin_batch_delete', {
+          input_pw: currentAdminPassword,
+          keys_to_delete: keysToDelete
+        });
+        if (error || !success) throw new Error('삭제 실패 또는 권한 오류');
         
         showToast(`✓ ${selectedSlots.size}개 슬롯 예약 내역 일괄 삭제 완료`);
         selectedSlots.clear();
@@ -601,17 +627,27 @@
     async function deleteUserBooking() {
       const inputName = document.getElementById('userDeleteNameInput').value.trim();
       const targetKey = pendingAdminBooking.key;
-      const targetBooking = state.bookings[targetKey];
       
       if (!inputName) { showToast('이름을 입력해 주세요.'); return; }
-      if (targetBooking.name !== inputName) { showToast('예약자 이름 정보가 일치하지 않습니다.'); return; }
       
-      try {
-        await supabaseClient.from('bookings').delete().eq('key', targetKey);
+      const { data: isDeleted, error } = await supabaseClient.rpc('delete_my_booking', { 
+        slot_key: targetKey, 
+        my_name: inputName 
+      });
+      
+      if (error) { 
+        showToast('취소 처리 중 오류가 발생했습니다.'); 
+        console.error(error);
+        return; 
+      }
+      
+      if (isDeleted) {
         closeModal('adminBookModal');
         showToast('✓ 예약이 성공적으로 취소되었습니다.');
         await syncFromSupabase();
-      } catch (err) { showToast('취소 처리 중 오류가 발생했습니다.'); }
+      } else {
+        showToast('취소 실패: 예약자 이름이 일치하지 않습니다.');
+      }
     }
     
     function countUserDailyBookings(date, name) {
@@ -677,6 +713,7 @@
       } catch (err) { showToast('확정 실패: ' + err.message); }
     }
 
+    // 🔥 보안 수정: 강의실 잠금 RPC 연동
     async function lockEntireRoomDay() {
       const targetRoomStr = prompt(`잠금(락)을 설정할 강의실 번호를 선택하세요.\n(0:120호, 1:128호, 2:129호, 3:219호, 4:229호)`);
       if (targetRoomStr === null || targetRoomStr === "") return;
@@ -694,10 +731,14 @@
       });
 
       try {
-        await supabaseClient.from('bookings').upsert(batch);
+        const { data: success, error } = await supabaseClient.rpc('admin_batch_insert', {
+          input_pw: currentAdminPassword,
+          batch_data: batch
+        });
+        if (error || !success) throw new Error('잠금 처리 중 서버 오류');
         showToast('✓ 해당 일자 일괄 잠금 완료');
         await syncFromSupabase();
-      } catch (err) { showToast('잠금 처리 실패'); }
+      } catch (err) { showToast('잠금 처리 실패: ' + err.message); }
     }
 
     function downloadCSVExport() {
@@ -743,6 +784,7 @@
       document.body.removeChild(link);
     }
 
+    // 🔥 보안 수정: CSV 시간표 대량 업로드 RPC 연동
     async function processExcelUpload() {
       const startInput = document.getElementById('excelStartDate').value;
       const endInput = document.getElementById('excelEndDate').value;
@@ -807,8 +849,11 @@
         if (!confirm(`확인: 총 ${finalBatch.length}개의 슬롯 예약 데이터가 해당 기간 전반에 일괄 분산 삽입됩니다. 진행하시겠습니까?`)) return;
 
         try {
-          const { error } = await supabaseClient.from('bookings').upsert(finalBatch);
-          if (error) throw error;
+          const { data: success, error } = await supabaseClient.rpc('admin_batch_insert', {
+            input_pw: currentAdminPassword,
+            batch_data: finalBatch
+          });
+          if (error || !success) throw new Error('서버 업로드 중 권한 에러 발생');
           closeModal('excelUploadModal');
           fileInput.value = '';
           showToast(`🚀 고정 시간표 일괄 배포 완료! (${finalBatch.length}개 슬롯)`);
@@ -819,39 +864,55 @@
     }
 
     function requestClearAll() { openModal('clearConfirmModal'); }
+    
+    // 🔥 보안 수정: 전체 데이터 초기화 RPC 연동
     async function executeClearAll() {
       const inputPw = document.getElementById('clearPasswordInput').value;
-      if (inputPw !== state.adminPassword) { alert('관리자 비밀번호가 틀렸습니다. 초기화를 거부합니다.'); return; }
+      if (inputPw !== currentAdminPassword) { alert('관리자 비밀번호가 틀렸습니다. 초기화를 거부합니다.'); return; }
       if (!confirm("진짜 실행합니까? 복구가 불가능한 영구 파괴 작업입니다.")) return;
       try {
-        await supabaseClient.from('bookings').delete().neq('key', 'default_never_delete_dummy');
-        await supabaseClient.from('queue').delete().neq('num', -1);
+        const { data: success, error } = await supabaseClient.rpc('admin_clear_all', {
+          input_pw: inputPw
+        });
+        if (error || !success) throw new Error('데이터 파괴 작업 중 서버 오류');
+
         closeModal('clearConfirmModal');
         document.getElementById('clearPasswordInput').value = '';
         showToast('🔥 시스템 초기화 및 데이터 전체 삭제 완료');
         await syncFromSupabase();
-      } catch (err) { showToast('초기화 쿼리 실패'); }
+      } catch (err) { showToast('초기화 쿼리 실패: ' + err.message); }
     }
 
     function clearSelection() { selectedSlots.clear(); render(); }
     function toggleSidebar() { sidebarOpen = !sidebarOpen; document.getElementById('sidebar').style.display = sidebarOpen ? 'block' : 'none'; }
     function changeWeek(d) { weekOffset += d; selectedSlots.clear(); render(); }
 
+    // 🔥 보안 수정: 공지 배포 RPC 연동
     async function postNotice() {
       const txt = document.getElementById('noticeInput').value.trim();
       if (!txt) return;
       try {
-        await supabaseClient.from('notices').insert([{ id: Date.now(), text: txt }]);
+        const { data: success, error } = await supabaseClient.rpc('admin_post_notice', {
+          input_pw: currentAdminPassword,
+          notice_id: Date.now(),
+          notice_text: txt
+        });
+        if (error || !success) throw new Error('공지 작성 권한 에러');
         document.getElementById('noticeInput').value = '';
         await syncFromSupabase();
-      } catch (err) { showToast('실패'); }
+      } catch (err) { showToast('실패: ' + err.message); }
     }
 
+    // 🔥 보안 수정: 공지 삭제 RPC 연동
     async function deleteNotice(id) {
       try {
-        await supabaseClient.from('notices').delete().eq('id', id);
+        const { data: success, error } = await supabaseClient.rpc('admin_delete_notice', {
+          input_pw: currentAdminPassword,
+          notice_id: id
+        });
+        if (error || !success) throw new Error('공지 삭제 권한 에러');
         await syncFromSupabase();
-      } catch (err) { showToast('실패'); }
+      } catch (err) { showToast('실패: ' + err.message); }
     }
     
     function render() {
