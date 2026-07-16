@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>강의실 예약 시스템 (스마트 다중 제어 모드)</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -254,8 +255,8 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const SUPABASE_URL = 'https://kdfxydjvexrndqgnmdqz.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_TFXKV2y0oFermMLgv49fdA_cuSrT6TJ';
+    // Supabase 설정은 config.js 에서 불러옵니다 (이 파일에 키를 직접 적지 마세요)
+    // SUPABASE_URL, SUPABASE_KEY 는 config.js 에서 선언됩니다.
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const ROOMS = ['120호', '128호', '129호', '219호', '229호'];
